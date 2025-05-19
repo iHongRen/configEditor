@@ -33,6 +33,7 @@
 			isa = PBXGroup;
 			children = (
 				80BAF05C2DD9DAC7003D41B9 /* Configs */,
+				80BAF0792DDAFBCA003D41B9 /* Frameworks */,
 				80BAF05B2DD9DAC7003D41B9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +44,13 @@
 				80BAF05A2DD9DAC7003D41B9 /* Configs.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		80BAF0792DDAFBCA003D41B9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -94,6 +102,8 @@
 			);
 			mainGroup = 80BAF0512DD9DAC7003D41B9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 80BAF05B2DD9DAC7003D41B9 /* Products */;
 			projectDirPath = "";
