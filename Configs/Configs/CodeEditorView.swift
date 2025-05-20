@@ -13,19 +13,13 @@ struct CodeEditorView: NSViewRepresentable {
     var fileExtension: String
     @Binding var search: String
     @Binding var ref: Ref?
-    var onSave: (() -> Void)? = nil
+    var isFocused: Bool
     var showSearchBar: (() -> Void)? = nil
+    var onSave: (() -> Void)? = nil
 
     // 自定义 NSTextView，拦截 Cmd+F
     class EditorTextView: NSTextView {
         var codeEditorParent: CodeEditorView?
-        override func keyDown(with event: NSEvent) {
-            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
-                codeEditorParent?.showSearchBar?()
-                return
-            }
-            super.keyDown(with: event)
-        }
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
@@ -45,6 +39,7 @@ struct CodeEditorView: NSViewRepresentable {
         
         deinit {
             highlightTimer?.invalidate()
+            NotificationCenter.default.removeObserver(self)
         }
         
         func textDidBeginEditing(_ notification: Notification) {
@@ -87,7 +82,6 @@ struct CodeEditorView: NSViewRepresentable {
             // Update last highlighted range
             lastHighlightedRange = currentLine
             
-         
             highlightTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
                 guard let self = self, let tv = self.textView else { return }
                 
@@ -178,6 +172,7 @@ struct CodeEditorView: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.backgroundColor = NSColor.textBackgroundColor
         textView.autoresizingMask = [.width, .height]
+        
         scrollView.documentView = textView
         context.coordinator.textView = textView
         context.coordinator.lastExternalText = text
@@ -193,6 +188,7 @@ struct CodeEditorView: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
         var needHighlight = false
+        
         // 内容变化
         if context.coordinator.lastExternalText != text {
             let selectedRange = textView.selectedRange()
@@ -203,13 +199,32 @@ struct CodeEditorView: NSViewRepresentable {
             context.coordinator.lastExternalText = text
             needHighlight = true
         }
+        
         // search 变化
         if context.coordinator.lastSearch != search {
             context.coordinator.lastSearch = search
             needHighlight = true
         }
+        
+        // 焦点变化
+        if !isFocused {
+            needHighlight = true
+        }
+        
         if needHighlight {
+            // Save current selection and visible area
+            let selectedRange = textView.selectedRange()
+            let visibleRect = textView.visibleRect
+            
+            // Apply highlighting immediately
             applyHighlight(textView)
+            
+            // Restore selection and visible area
+            textView.setSelectedRange(selectedRange)
+            textView.scrollToVisible(visibleRect)
+            
+            // Force layout update
+            textView.layoutManager?.ensureLayout(for: textView.textContainer!)
         }
     }
 
@@ -224,13 +239,15 @@ struct CodeEditorView: NSViewRepresentable {
         let selectedRange = textView.selectedRange()
         let visibleRect = textView.visibleRect
         
-        applyHighlightToRange(textView, range: fullRange)
+        // Begin batch editing
+        textStorage.beginEditing()
         
-        // Restore selection range and visible area
-        textView.selectedRange = selectedRange
-        textView.scrollToVisible(visibleRect)
+        // Reset all attributes first
+        textStorage.removeAttribute(.foregroundColor, range: fullRange)
+        textStorage.removeAttribute(.backgroundColor, range: fullRange)
+        textStorage.addAttribute(.foregroundColor, value: NSColor.textColor, range: fullRange)
         
-        // Automatically choose highlight style based on file extension
+        // Apply syntax highlighting
         let ext = fileExtension.lowercased()
         switch ext {
         case "json":
@@ -259,13 +276,20 @@ struct CodeEditorView: NSViewRepresentable {
             break // plain text
         }
         
-       
+        // Apply search highlighting last
         if !search.isEmpty {
             let pattern = NSRegularExpression.escapedPattern(for: search)
             highlightPattern(textStorage, pattern, color: .yellow, background: .systemYellow)
         }
         
         textStorage.endEditing()
+        
+        // Restore selection range and visible area
+        textView.setSelectedRange(selectedRange)
+        textView.scrollToVisible(visibleRect)
+        
+        // Force layout update
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
     }
 
     func applyHighlightToRange(_ textView: NSTextView, range: NSRange) {

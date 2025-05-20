@@ -172,6 +172,9 @@ struct ContentView: View {
                         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                             if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
                                 showEditorSearchBar = true
+                                DispatchQueue.main.async {
+                                    searchFieldFocused = true
+                                }
                                 return nil
                             }
                             if event.keyCode == 53 { // 53 = esc
@@ -265,6 +268,7 @@ struct ContentView: View {
                            fileExtension: detectLanguage(selectedFile?.name), 
                            search: $editorSearchText, 
                            ref: $editorViewRef,
+                           isFocused: !searchFieldFocused,
                            showSearchBar: { 
                                showEditorSearchBar = true
                                DispatchQueue.main.async {
