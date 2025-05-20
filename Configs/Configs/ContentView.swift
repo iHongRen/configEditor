@@ -14,6 +14,25 @@ struct ConfigFile: Identifiable, Hashable {
     let id = UUID()
     let name: String
     let path: String
+    let isCustom: Bool
+    
+    // 用于 UserDefaults 存储
+    static func fromDictionary(_ dict: [String: Any]) -> ConfigFile? {
+        guard let name = dict["name"] as? String,
+              let path = dict["path"] as? String,
+              let isCustom = dict["isCustom"] as? Bool else {
+            return nil
+        }
+        return ConfigFile(name: name, path: path, isCustom: isCustom)
+    }
+    
+    func toDictionary() -> [String: Any] {
+        return [
+            "name": name,
+            "path": path,
+            "isCustom": isCustom
+        ]
+    }
 }
 
 struct ContentView: View {
@@ -89,16 +108,66 @@ struct ContentView: View {
         (".config/starship.toml", ".config/starship.toml"), (".config/alacritty/alacritty.yml", ".config/alacritty/alacritty.yml"), (".config/kitty/kitty.conf", ".config/kitty/kitty.conf"), (".config/fish/config.fish", ".config/fish/config.fish")
     ]
 
+    // 保存自定义配置到 UserDefaults
+    private func saveCustomConfigs() {
+        let customConfigs = configFiles.filter { $0.isCustom }
+        let configDicts = customConfigs.map { $0.toDictionary() }
+        UserDefaults.standard.set(configDicts, forKey: "customConfigs")
+    }
+    
+    // 从 UserDefaults 加载自定义配置
+    private func loadCustomConfigs() {
+        if let configDicts = UserDefaults.standard.array(forKey: "customConfigs") as? [[String: Any]] {
+            let customConfigs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
+            // 移除已不存在的自定义配置
+            let validCustomConfigs = customConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
+            // 更新配置列表
+            configFiles = configFiles.filter { !$0.isCustom }
+            configFiles.append(contentsOf: validCustomConfigs)
+        }
+    }
+
+    // 保存默认配置到 UserDefaults
+    private func saveDefaultConfigs() {
+        let defaultConfigs = configFiles.filter { !$0.isCustom }
+        let configDicts = defaultConfigs.map { $0.toDictionary() }
+        UserDefaults.standard.set(configDicts, forKey: "defaultConfigs")
+    }
+    
+    // 从 UserDefaults 加载默认配置
+    private func loadDefaultConfigs() -> [ConfigFile] {
+        if let configDicts = UserDefaults.standard.array(forKey: "defaultConfigs") as? [[String: Any]] {
+            let defaultConfigs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
+            // 只返回仍然存在的配置文件
+            return defaultConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
+        }
+        return []
+    }
+
     func scanConfigFiles() -> [ConfigFile] {
+        // 首先尝试从 UserDefaults 加载默认配置
+        let savedDefaultConfigs = loadDefaultConfigs()
+        if !savedDefaultConfigs.isEmpty {
+            return savedDefaultConfigs
+        }
+        
+        // 如果没有保存的配置，则扫描文件系统
         let homePath = NSHomeDirectory()
         let fileManager = FileManager.default
         var results: [ConfigFile] = []
         for (name, relPath) in commonConfigs {
             let filePath = (relPath.hasPrefix("/")) ? relPath : homePath + "/" + relPath
             if fileManager.fileExists(atPath: filePath) {
-                results.append(ConfigFile(name: name, path: filePath))
+                results.append(ConfigFile(name: name, path: filePath, isCustom: false))
             }
         }
+        
+        // 保存扫描到的默认配置
+        if !results.isEmpty {
+            let configDicts = results.map { $0.toDictionary() }
+            UserDefaults.standard.set(configDicts, forKey: "defaultConfigs")
+        }
+        
         return results
     }
 
@@ -168,6 +237,11 @@ struct ContentView: View {
                     .frame(minWidth: 200)
                     .onAppear {
                         loadConfigFiles()
+                        loadCustomConfigs() // 加载自定义配置
+                        if let first = configFiles.first {
+                            selectedFile = first
+                            loadFileContent(file: first)
+                        }
                        
                         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                             if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
@@ -209,10 +283,12 @@ struct ContentView: View {
                                 let path = url.path
                              
                                 if !configFiles.contains(where: { $0.path == path }) {
-                                    let newConfig = ConfigFile(name: name, path: path)
+                                    let newConfig = ConfigFile(name: name, path: path, isCustom: true)
                                     configFiles.append(newConfig)
                                     selectedFile = newConfig
                                     loadFileContent(file: newConfig)
+                                    // 保存新的自定义配置
+                                    saveCustomConfigs()
                                 }
                             }
                         default:
@@ -224,9 +300,8 @@ struct ContentView: View {
 
 
             VStack(spacing: 0) {
-             
-                HStack {
-                    if showEditorSearchBar {
+                if showEditorSearchBar {
+                    HStack {
                         TextField("Search content...", text: $editorSearchText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 200)
@@ -259,10 +334,8 @@ struct ContentView: View {
                         .buttonStyle(PlainButtonStyle())
                         .help("Close search")
                     }
+                    .padding(.all, 5)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                Divider()
                
                 CodeEditorView(text: $fileContent, 
                            fileExtension: detectLanguage(selectedFile?.name), 
@@ -332,10 +405,6 @@ struct ContentView: View {
 
     func loadConfigFiles() {
         configFiles = scanConfigFiles()
-        if let first = configFiles.first {
-            selectedFile = first
-            loadFileContent(file: first)
-        }
     }
 
     func loadFileContent(file: ConfigFile) {
