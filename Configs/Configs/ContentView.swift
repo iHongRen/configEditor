@@ -260,15 +260,11 @@ struct ContentView: View {
                                             Label("Open in Cursor", systemImage: "cursorarrow")
                                         }
                                         
-                                        if file.isCustom {
-                                            Divider()
-                                            
-                                            Button(role: .destructive, action: {
-                                                contextMenuFile = file
-                                                showDeleteAlert = true
-                                            }) {
-                                                Label("Delete", systemImage: "trash")
-                                            }
+                                        Button(role: .destructive, action: {
+                                            contextMenuFile = file
+                                            showDeleteAlert = true
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
                                         }
                                     }
                             }
@@ -669,18 +665,30 @@ struct ContentView: View {
     
     // 删除配置文件
     private func deleteConfigFile(_ file: ConfigFile) {
-        if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
-            configFiles.remove(at: index)
-            if selectedFile?.id == file.id {
-                selectedFile = configFiles.first
-                if let first = configFiles.first {
-                    loadFileContent(file: first)
+        do {
+            // 如果是自定义配置，删除文件
+            if file.isCustom {
+                try FileManager.default.removeItem(atPath: file.path)
+            }
+            
+            // 从列表中移除
+            if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
+                configFiles.remove(at: index)
+                if selectedFile?.id == file.id {
+                    selectedFile = configFiles.first
+                    if let first = configFiles.first {
+                        loadFileContent(file: first)
+                    } else {
+                        fileContent = ""
+                    }
+                }
+                // 如果是自定义配置，更新 UserDefaults
+                if file.isCustom {
+                    saveCustomConfigs()
                 }
             }
-            // 如果是自定义配置，更新 UserDefaults
-            if file.isCustom {
-                saveCustomConfigs()
-            }
+        } catch {
+            print("Error deleting file: \(error)")
         }
     }
 }
