@@ -16,6 +16,18 @@ struct CodeEditorView: NSViewRepresentable {
     var onSave: (() -> Void)? = nil
     var showSearchBar: (() -> Void)? = nil
 
+    // 自定义 NSTextView，拦截 Cmd+F
+    class EditorTextView: NSTextView {
+        var codeEditorParent: CodeEditorView?
+        override func keyDown(with event: NSEvent) {
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
+                codeEditorParent?.showSearchBar?()
+                return
+            }
+            super.keyDown(with: event)
+        }
+    }
+
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CodeEditorView
         var textView: NSTextView?
@@ -24,6 +36,7 @@ struct CodeEditorView: NSViewRepresentable {
         var highlightTimer: Timer?
         var lastHighlightedRange: NSRange?
         var isTyping = false
+        var lastSearch: String = ""
 
         init(_ parent: CodeEditorView) { 
             self.parent = parent
@@ -155,7 +168,8 @@ struct CodeEditorView: NSViewRepresentable {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
-        let textView = NSTextView()
+        let textView = EditorTextView()
+        textView.codeEditorParent = self
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
@@ -178,7 +192,8 @@ struct CodeEditorView: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
-        // Only sync when external content changes, without affecting cursor
+        var needHighlight = false
+        // 内容变化
         if context.coordinator.lastExternalText != text {
             let selectedRange = textView.selectedRange()
             context.coordinator.ignoreTextChange = true
@@ -186,7 +201,14 @@ struct CodeEditorView: NSViewRepresentable {
             context.coordinator.ignoreTextChange = false
             textView.setSelectedRange(selectedRange)
             context.coordinator.lastExternalText = text
-            // Apply highlighting immediately when external content changes, no debounce needed
+            needHighlight = true
+        }
+        // search 变化
+        if context.coordinator.lastSearch != search {
+            context.coordinator.lastSearch = search
+            needHighlight = true
+        }
+        if needHighlight {
             applyHighlight(textView)
         }
     }

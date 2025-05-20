@@ -47,6 +47,7 @@ struct ContentView: View {
     @State private var keyMonitor: Any?
     @State private var fileSize: Int64 = 0
     @State private var fileModificationDate: Date? = nil
+    @FocusState private var searchFieldFocused: Bool
     
     // Automatically scan user's home directory for all hidden config files and common config directories
 
@@ -228,14 +229,9 @@ struct ContentView: View {
                             .frame(width: 200)
                             .disableAutocorrection(true)
                             .help("Search in current file (Press Enter for next)")
+                            .focused($searchFieldFocused)
                             .onSubmit {
                                 editorViewRef?.findNext(editorSearchText)
-                            }
-                            .onChange(of: editorSearchText) { _ in
-                               
-                                if showEditorSearchBar {
-                                    
-                                }
                             }
                         Button(action: {
                             editorViewRef?.findNext(editorSearchText)
@@ -269,7 +265,12 @@ struct ContentView: View {
                            fileExtension: detectLanguage(selectedFile?.name), 
                            search: $editorSearchText, 
                            ref: $editorViewRef,
-                           showSearchBar: { showEditorSearchBar = true })
+                           showSearchBar: { 
+                               showEditorSearchBar = true
+                               DispatchQueue.main.async {
+                                   searchFieldFocused = true
+                               }
+                           })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                
                 Divider()
