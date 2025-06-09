@@ -432,7 +432,7 @@ struct ContentView: View {
         do {
             try fileContent.write(toFile: file.path, atomically: true, encoding: .utf8)
             // 检查是否为 Zsh 或 Bash 配置文件
-            if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc" || file.path.hasSuffix(".bash_profile")) {
+            if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {
                 let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
                 let sourceCommand = "source \(file.path)"
                 executeShellCommand(command: sourceCommand, shell: shell)
