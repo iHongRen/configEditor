@@ -272,11 +272,11 @@ struct CodeEditorView: NSViewRepresentable {
                 pattern?.enumerateMatches(in: textStorage.string, range: NSRange(location: 0, length: textStorage.length)) { match, _, _ in
                     if let match = match {
                         // 键
-                        if let keyRange = Range(match.range(at: 2), in: textStorage.string) {
+                        if Range(match.range(at: 2), in: textStorage.string) != nil {
                             textStorage.addAttribute(.foregroundColor, value: NSColor.systemBlue, range: match.range(at: 2))
                         }
                         // 冒号
-                        if let colonRange = Range(match.range(at: 3), in: textStorage.string) {
+                        if Range(match.range(at: 3), in: textStorage.string) != nil {
                             textStorage.addAttribute(.foregroundColor, value: NSColor.systemGray, range: match.range(at: 3))
                         }
                     }

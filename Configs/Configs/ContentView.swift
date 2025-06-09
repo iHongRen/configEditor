@@ -300,6 +300,11 @@ struct ContentView: View {
                                     return nil
                                 }
                             }
+                             // 监听 Cmd + S 组合键
+                            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "s" {
+                                saveFileContent()
+                                return nil
+                            }
                             return event
                         }
                     }
@@ -422,15 +427,43 @@ struct ContentView: View {
         }
     }
 
-    // Save edited content to file
     func saveFileContent() {
         guard let file = selectedFile else { return }
         do {
             try fileContent.write(toFile: file.path, atomically: true, encoding: .utf8)
+            // 检查是否为 Zsh 或 Bash 配置文件
+            if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc" || file.path.hasSuffix(".bash_profile")) {
+                let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
+                let sourceCommand = "source \(file.path)"
+                executeShellCommand(command: sourceCommand, shell: shell)
+            }
         } catch {
             // TODO: Show save failure alert
         }
     }
+    
+    // 执行 shell 命令
+   private func executeShellCommand(command: String, shell: String) {
+       let process = Process()
+       process.launchPath = "/bin/sh"
+       process.arguments = ["-c", "\(shell) -c '\(command)'"]
+
+       let pipe = Pipe()
+       process.standardOutput = pipe
+       process.standardError = pipe
+
+       do {
+           try process.run()
+           process.waitUntilExit()
+
+           let data = pipe.fileHandleForReading.readDataToEndOfFile()
+           if let output = String(data: data, encoding: .utf8) {
+               print(output)
+           }
+       } catch {
+           print("Failed to execute command: \(error)")
+       }
+   }
 
     // Detect syntax highlighting language based on filename (returns extension string)
     func detectLanguage(_ name: String?) -> String {
