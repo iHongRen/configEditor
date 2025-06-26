@@ -15,6 +15,7 @@ struct ConfigFile: Identifiable, Hashable {
     let name: String
     let path: String
     let isCustom: Bool
+    var isPinned: Bool = false
     
     // 用于 UserDefaults 存储
     static func fromDictionary(_ dict: [String: Any]) -> ConfigFile? {
@@ -23,14 +24,16 @@ struct ConfigFile: Identifiable, Hashable {
               let isCustom = dict["isCustom"] as? Bool else {
             return nil
         }
-        return ConfigFile(name: name, path: path, isCustom: isCustom)
+        let isPinned = dict["isPinned"] as? Bool ?? false
+        return ConfigFile(name: name, path: path, isCustom: isCustom, isPinned: isPinned)
     }
     
     func toDictionary() -> [String: Any] {
         return [
             "name": name,
             "path": path,
-            "isCustom": isCustom
+            "isCustom": isCustom,
+            "isPinned": isPinned
         ]
     }
 }
@@ -112,6 +115,40 @@ struct ContentView: View {
         (".config/starship.toml", ".config/starship.toml"), (".config/alacritty/alacritty.yml", ".config/alacritty/alacritty.yml"), (".config/kitty/kitty.conf", ".config/kitty/kitty.conf"), (".config/fish/config.fish", ".config/fish/config.fish")
     ]
 
+    private func saveAllConfigs() {
+        let configDicts = configFiles.map { $0.toDictionary() }
+        UserDefaults.standard.set(configDicts, forKey: "allConfigs")
+    }
+    
+    private func loadAllConfigs() {
+        if let configDicts = UserDefaults.standard.array(forKey: "allConfigs") as? [[String: Any]] {
+            let configs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
+            let validConfigs = configs.filter { FileManager.default.fileExists(atPath: $0.path) }
+            configFiles = validConfigs
+        } else {
+            // Fallback to old loading mechanism
+            configFiles = scanConfigFiles()
+            loadCustomConfigs()
+        }
+    }
+
+    private func togglePin(for file: ConfigFile) {
+        if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
+            configFiles[index].isPinned.toggle()
+            sortConfigFiles()
+            saveAllConfigs()
+        }
+    }
+
+    private func sortConfigFiles() {
+        configFiles.sort {
+            if $0.isPinned != $1.isPinned {
+                return $0.isPinned && !$1.isPinned
+            }
+            return $0.name < $1.name
+        }
+    }
+
     // 保存自定义配置到 UserDefaults
     private func saveCustomConfigs() {
         let customConfigs = configFiles.filter { $0.isCustom }
@@ -126,7 +163,8 @@ struct ContentView: View {
             // 移除已不存在的自定义配置
             let validCustomConfigs = customConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
             // 更新配置列表
-            configFiles = configFiles.filter { !$0.isCustom }
+            let customPaths = Set(validCustomConfigs.map { $0.path })
+            configFiles.removeAll { customPaths.contains($0.path) }
             configFiles.append(contentsOf: validCustomConfigs)
         }
     }
@@ -222,58 +260,75 @@ struct ContentView: View {
                             Text("No config files found")
                         } else {
                             ForEach(filteredFiles) { file in
-                                Text(file.name)
-                                    .padding(.vertical, 4)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        (selectedFile == file) ? Color.accentColor.opacity(0.2) : Color.clear
-                                    )
-                                    .cornerRadius(6)
-                                    .tag(file as ConfigFile?)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        selectedFile = file
-                                        loadFileContent(file: file)
+                                HStack {
+                                    Text(file.name)
+                                    Spacer()
+                                    if file.isPinned {
+                                        Image(systemName: "pin.fill")
+                                            .foregroundColor(.accentColor)
                                     }
-                                    .contextMenu {
-                                        Button(action: {
-                                            copyPathToClipboard(file.path)
-                                        }) {
-                                            Label("Copy Path", systemImage: "doc.on.doc")
-                                        }
-                                        
-                                        Button(action: {
-                                            openInFinder(file.path)
-                                        }) {
-                                            Label("Open in Finder", systemImage: "folder")
-                                        }
-                                        
-                                        Button(action: {
-                                            openInCode(file.path)
-                                        }) {
-                                            Label("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right")
-                                        }
-                                        
-                                        Button(action: {
-                                            openInCursor(file.path)
-                                        }) {
-                                            Label("Open in Cursor", systemImage: "cursorarrow")
-                                        }
-                                        
-                                        Button(role: .destructive, action: {
-                                            contextMenuFile = file
-                                            showDeleteAlert = true
-                                        }) {
-                                            Label("Delete", systemImage: "trash")
+                                }
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
+                                )
+                                .cornerRadius(6)
+                                .tag(file as ConfigFile?)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedFile = file
+                                    loadFileContent(file: file)
+                                }
+                                .contextMenu {
+                                    Button(action: {
+                                        togglePin(for: file)
+                                    }) {
+                                        if file.isPinned {
+                                            Label("Unpin", systemImage: "pin.slash")
+                                        } else {
+                                            Label("Pin", systemImage: "pin")
                                         }
                                     }
+                                    
+                                    Button(action: {
+                                        copyPathToClipboard(file.path)
+                                    }) {
+                                        Label("Copy Path", systemImage: "doc.on.doc")
+                                    }
+                                    
+                                    Button(action: {
+                                        openInFinder(file.path)
+                                    }) {
+                                        Label("Open in Finder", systemImage: "folder")
+                                    }
+                                    
+                                    Button(action: {
+                                        openInCode(file.path)
+                                    }) {
+                                        Label("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                                    }
+                                    
+                                    Button(action: {
+                                        openInCursor(file.path)
+                                    }) {
+                                        Label("Open in Cursor", systemImage: "cursorarrow")
+                                    }
+                                    
+                                    Button(role: .destructive, action: {
+                                        contextMenuFile = file
+                                        showDeleteAlert = true
+                                    }) {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
                     .frame(minWidth: 200)
                     .onAppear {
-                        loadConfigFiles()
-                        loadCustomConfigs() // 加载自定义配置
+                        loadAllConfigs()
+                        sortConfigFiles()
                         if let first = configFiles.first {
                             selectedFile = first
                             loadFileContent(file: first)
@@ -326,10 +381,10 @@ struct ContentView: View {
                                 if !configFiles.contains(where: { $0.path == path }) {
                                     let newConfig = ConfigFile(name: name, path: path, isCustom: true)
                                     configFiles.append(newConfig)
+                                    sortConfigFiles()
                                     selectedFile = newConfig
                                     loadFileContent(file: newConfig)
-                                    // 保存新的自定义配置
-                                    saveCustomConfigs()
+                                    saveAllConfigs()
                                 }
                             }
                         default:
@@ -615,7 +670,8 @@ struct ContentView: View {
 
 
     func loadConfigFiles() {
-        configFiles = scanConfigFiles()
+        loadAllConfigs()
+        sortConfigFiles()
     }
 
     func loadFileContent(file: ConfigFile) {
@@ -715,10 +771,7 @@ struct ContentView: View {
                         fileContent = ""
                     }
                 }
-                // 如果是自定义配置，更新 UserDefaults
-                if file.isCustom {
-                    saveCustomConfigs()
-                }
+                saveAllConfigs()
             }
         } catch {
             print("Error deleting file: \(error)")
