@@ -120,17 +120,38 @@ struct ContentView: View {
         let configDicts = configFiles.map { $0.toDictionary() }
         UserDefaults.standard.set(configDicts, forKey: "allConfigs")
     }
-    
-    private func loadAllConfigs() {
-        if let configDicts = UserDefaults.standard.array(forKey: "allConfigs") as? [[String: Any]] {
+
+    private func setupInitialConfigs() {
+        // Try loading from "allConfigs" first
+        if let configDicts = UserDefaults.standard.array(forKey: "allConfigs") as? [[String: Any]], !configDicts.isEmpty {
             let configs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
+            // Filter out files that no longer exist
             let validConfigs = configs.filter { FileManager.default.fileExists(atPath: $0.path) }
             configFiles = validConfigs
+            
+            // If some files were removed, update UserDefaults
+            if validConfigs.count != configs.count {
+                saveAllConfigs()
+            }
         } else {
-            // Fallback to old loading mechanism
-            configFiles = scanConfigFiles()
-            loadCustomConfigs()
+            // First launch or cleared data: scan the filesystem
+            configFiles = scanForDefaultConfigFiles()
+            // Persist the scanned files for next launch
+            saveAllConfigs()
         }
+    }
+
+    private func scanForDefaultConfigFiles() -> [ConfigFile] {
+        let homePath = NSHomeDirectory()
+        let fileManager = FileManager.default
+        var results: [ConfigFile] = []
+        for (name, relPath) in commonConfigs {
+            let filePath = (relPath.hasPrefix("/")) ? relPath : homePath + "/" + relPath
+            if fileManager.fileExists(atPath: filePath) {
+                results.append(ConfigFile(name: name, path: filePath, isCustom: false))
+            }
+        }
+        return results
     }
 
     private func togglePin(for file: ConfigFile) {
@@ -148,70 +169,6 @@ struct ContentView: View {
             }
             return $0.name < $1.name
         }
-    }
-
-    // 保存自定义配置到 UserDefaults
-    private func saveCustomConfigs() {
-        let customConfigs = configFiles.filter { $0.isCustom }
-        let configDicts = customConfigs.map { $0.toDictionary() }
-        UserDefaults.standard.set(configDicts, forKey: "customConfigs")
-    }
-    
-    // 从 UserDefaults 加载自定义配置
-    private func loadCustomConfigs() {
-        if let configDicts = UserDefaults.standard.array(forKey: "customConfigs") as? [[String: Any]] {
-            let customConfigs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
-            // 移除已不存在的自定义配置
-            let validCustomConfigs = customConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
-            // 更新配置列表
-            let customPaths = Set(validCustomConfigs.map { $0.path })
-            configFiles.removeAll { customPaths.contains($0.path) }
-            configFiles.append(contentsOf: validCustomConfigs)
-        }
-    }
-
-    // 保存默认配置到 UserDefaults
-    private func saveDefaultConfigs() {
-        let defaultConfigs = configFiles.filter { !$0.isCustom }
-        let configDicts = defaultConfigs.map { $0.toDictionary() }
-        UserDefaults.standard.set(configDicts, forKey: "defaultConfigs")
-    }
-    
-    // 从 UserDefaults 加载默认配置
-    private func loadDefaultConfigs() -> [ConfigFile] {
-        if let configDicts = UserDefaults.standard.array(forKey: "defaultConfigs") as? [[String: Any]] {
-            let defaultConfigs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
-            // 只返回仍然存在的配置文件
-            return defaultConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
-        }
-        return []
-    }
-
-    func scanConfigFiles() -> [ConfigFile] {
-        // 首先尝试从 UserDefaults 加载默认配置
-        let savedDefaultConfigs = loadDefaultConfigs()
-        if !savedDefaultConfigs.isEmpty {
-            return savedDefaultConfigs
-        }
-        
-        // 如果没有保存的配置，则扫描文件系统
-        let homePath = NSHomeDirectory()
-        let fileManager = FileManager.default
-        var results: [ConfigFile] = []
-        for (name, relPath) in commonConfigs {
-            let filePath = (relPath.hasPrefix("/")) ? relPath : homePath + "/" + relPath
-            if fileManager.fileExists(atPath: filePath) {
-                results.append(ConfigFile(name: name, path: filePath, isCustom: false))
-            }
-        }
-        
-        // 保存扫描到的默认配置
-        if !results.isEmpty {
-            let configDicts = results.map { $0.toDictionary() }
-            UserDefaults.standard.set(configDicts, forKey: "defaultConfigs")
-        }
-        
-        return results
     }
 
     var body: some View {
@@ -332,7 +289,7 @@ struct ContentView: View {
                     }
                     .frame(minWidth: 200 * globalZoomLevel)
                     .onAppear {
-                        loadAllConfigs()
+                        setupInitialConfigs()
                         sortConfigFiles()
                         if let first = configFiles.first {
                             selectedFile = first
@@ -692,7 +649,6 @@ struct ContentView: View {
 
 
     func loadConfigFiles() {
-        loadAllConfigs()
         sortConfigFiles()
     }
 
