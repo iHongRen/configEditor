@@ -61,6 +61,7 @@ struct ContentView: View {
     @State private var fileContent: String = ""
     @State private var searchText: String = ""
     @State private var showFileImporter: Bool = false
+    @AppStorage("globalZoomLevel") private var globalZoomLevel: Double = 1.0 // Default 1.0
 
     // Editor-related states
     @State private var editorSearchText: String = ""
@@ -224,7 +225,8 @@ struct ContentView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .padding(.leading, 12)
                                 .disableAutocorrection(true)
-                                .frame(height: 28)
+                                .frame(height: 28 * globalZoomLevel)
+                                .font(.system(size: 13 * globalZoomLevel))
 
                             if !searchText.isEmpty {
                                 HStack {
@@ -234,17 +236,17 @@ struct ContentView: View {
                                             .foregroundColor(.secondary)
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    .frame(width: 24, height: 28)
+                                    .frame(width: 24 * globalZoomLevel, height: 28 * globalZoomLevel)
                                     .padding(.trailing, 2)
                                 }
                             }
                         }
-                        .frame(height: 40)
+                        .frame(height: 40 * globalZoomLevel)
                
                         Button(action: { showFileImporter = true }) {
                             Image(systemName: "plus.circle")
                                 .resizable()
-                                .frame(width: 20, height: 20)
+                                .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
                                 .foregroundColor(.accentColor)
                                 .help("Add custom config file")
                         }
@@ -258,17 +260,20 @@ struct ContentView: View {
                         }
                         if filteredFiles.isEmpty {
                             Text("No config files found")
+                                .font(.system(size: 13 * globalZoomLevel))
                         } else {
                             ForEach(filteredFiles) { file in
                                 HStack {
                                     Text(file.name)
+                                        .font(.system(size: 13 * globalZoomLevel))
                                     Spacer()
                                     if file.isPinned {
                                         Image(systemName: "pin.fill")
                                             .foregroundColor(.accentColor)
+                                            .font(.system(size: 13 * globalZoomLevel))
                                     }
                                 }
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 4 * globalZoomLevel)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(
                                     (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
@@ -325,7 +330,7 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .frame(minWidth: 200)
+                    .frame(minWidth: 200 * globalZoomLevel)
                     .onAppear {
                         loadAllConfigs()
                         sortConfigFiles()
@@ -335,12 +340,30 @@ struct ContentView: View {
                         }
                        
                         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
-                                showEditorSearchBar = true
-                                DispatchQueue.main.async {
-                                    searchFieldFocused = true
+                            if event.modifierFlags.contains(.command) {
+                                if event.charactersIgnoringModifiers == "f" {
+                                    showEditorSearchBar = true
+                                    DispatchQueue.main.async {
+                                        searchFieldFocused = true
+                                    }
+                                    return nil
                                 }
-                                return nil
+                                if event.charactersIgnoringModifiers == "s" {
+                                    saveFileContent()
+                                    return nil
+                                }
+                                if event.charactersIgnoringModifiers == "=" || event.charactersIgnoringModifiers == "+" {
+                                    globalZoomLevel = min(2.0, globalZoomLevel + 0.1) // Max zoom 2.0
+                                    return nil
+                                }
+                                if event.charactersIgnoringModifiers == "-" {
+                                    globalZoomLevel = max(0.5, globalZoomLevel - 0.1) // Min zoom 0.5
+                                    return nil
+                                }
+                                if event.charactersIgnoringModifiers == "0" {
+                                    globalZoomLevel = 1.0 // Reset zoom
+                                    return nil
+                                }
                             }
                             if event.keyCode == 53 { // 53 = esc
                                 if showEditorSearchBar {
@@ -355,11 +378,6 @@ struct ContentView: View {
                                     return nil
                                 }
                             }
-                             // 监听 Cmd + S 组合键
-                            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "s" {
-                                saveFileContent()
-                                return nil
-                            }
                             return event
                         }
                     }
@@ -370,7 +388,6 @@ struct ContentView: View {
                             keyMonitor = nil
                         }
                     }
-                  
                     .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
                         switch result {
                         case .success(let urls):
@@ -400,10 +417,11 @@ struct ContentView: View {
                     HStack {
                         TextField("Search content...", text: $editorSearchText)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 200)
+                            .frame(width: 200 * globalZoomLevel)
                             .disableAutocorrection(true)
                             .help("Search in current file (Press Enter for next)")
                             .focused($searchFieldFocused)
+                            .font(.system(size: 13 * globalZoomLevel))
                             .onSubmit {
                                 editorViewRef?.findNext(editorSearchText)
                             }
@@ -411,6 +429,7 @@ struct ContentView: View {
                             editorViewRef?.findNext(editorSearchText)
                         }) {
                             Image(systemName: "chevron.down")
+                                .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Find next")
@@ -418,6 +437,7 @@ struct ContentView: View {
                             editorViewRef?.findPrevious(editorSearchText)
                         }) {
                             Image(systemName: "chevron.up")
+                                .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Find previous")
@@ -426,11 +446,12 @@ struct ContentView: View {
                             editorSearchText = "" 
                         }) {
                             Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Close search")
                     }
-                    .padding(.all, 5)
+                    .padding(.all, 5 * globalZoomLevel)
                 }
                
                 CodeEditorView(text: $fileContent, 
@@ -443,11 +464,12 @@ struct ContentView: View {
                                DispatchQueue.main.async {
                                    searchFieldFocused = true
                                }
-                           })
+                           },
+                           zoomLevel: globalZoomLevel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                
                 Divider()
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * globalZoomLevel) {
                     if let selectedFile = selectedFile {
                         Text(selectedFile.name)
                             .foregroundColor(.secondary)
@@ -462,14 +484,14 @@ struct ContentView: View {
                         }
                     }
                 }
-                .font(.system(size: 11))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .frame(height: 24)
+                .font(.system(size: 11 * globalZoomLevel))
+                .padding(.horizontal, 8 * globalZoomLevel)
+                .padding(.vertical, 4 * globalZoomLevel)
+                .frame(height: 24 * globalZoomLevel)
             }
-            .frame(minWidth: 400)
+            .frame(minWidth: 400 * globalZoomLevel)
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
         .alert("Delete Config File", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {

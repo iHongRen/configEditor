@@ -16,6 +16,7 @@ struct CodeEditorView: NSViewRepresentable {
     var isFocused: Bool
     var showSearchBar: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
+    var zoomLevel: Double
     
     // 添加 textView 属性
     private var textView: NSTextView? {
@@ -173,7 +174,7 @@ struct CodeEditorView: NSViewRepresentable {
         textView.isSelectable = true
         textView.allowsUndo = true
         textView.usesFindBar = false
-        textView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.font = .monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
         textView.delegate = context.coordinator
         textView.backgroundColor = NSColor.textBackgroundColor
         textView.autoresizingMask = [.width, .height]
@@ -194,6 +195,9 @@ struct CodeEditorView: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
         var needHighlight = false
         
+        // Update font size based on zoomLevel
+        textView.font = .monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
+
         // 内容变化
         if context.coordinator.lastExternalText != text {
             let selectedRange = textView.selectedRange()
