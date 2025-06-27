@@ -178,8 +178,8 @@ struct ContentView: View {
               
                     HStack(alignment: .center) {
                         ZStack {
-                            TextField("Search config files...", text: $searchText, prompt: Text("Search config files..."))
-                                .textFieldStyle(.roundedBorder)
+                            TextField("Search config file...", text: $searchText, prompt: Text("Search config files..."))
+                                .textFieldStyle(PlainTextFieldStyle())
                                 .padding(.leading, 12)
                                 .disableAutocorrection(true)
                                 .frame(height: 28 * globalZoomLevel)
