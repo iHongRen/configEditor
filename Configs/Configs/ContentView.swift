@@ -172,203 +172,199 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationView {
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-              
-                    HStack(alignment: .center) {
-                        ZStack {
-                            TextField("Search config file...", text: $searchText, prompt: Text("Search config files..."))
-                                .textFieldStyle(PlainTextFieldStyle())
-                                .padding(.leading, 12)
-                                .disableAutocorrection(true)
-                                .frame(height: 28 * globalZoomLevel)
-                                .font(.system(size: 13 * globalZoomLevel))
+        NavigationSplitView {
+            VStack(spacing: 0) {
+                HStack(alignment: .center) {
+                    ZStack {
+                        TextField("Search config file...", text: $searchText, prompt: Text("Search config files..."))
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding(.leading, 12)
+                            .disableAutocorrection(true)
+                            .frame(height: 28 * globalZoomLevel)
+                            .font(.system(size: 13 * globalZoomLevel))
 
-                            if !searchText.isEmpty {
-                                HStack {
-                                    Spacer()
-                                    Button(action: { searchText = "" }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .frame(width: 24 * globalZoomLevel, height: 28 * globalZoomLevel)
-                                    .padding(.trailing, 2)
+                        if !searchText.isEmpty {
+                            HStack {
+                                Spacer()
+                                Button(action: { searchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
                                 }
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(width: 24 * globalZoomLevel, height: 28 * globalZoomLevel)
+                                .padding(.trailing, 2)
                             }
                         }
-                        .frame(height: 40 * globalZoomLevel)
-               
-                        Button(action: { showFileImporter = true }) {
-                            Image(systemName: "plus.circle")
-                                .resizable()
-                                .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
-                                .foregroundColor(.accentColor)
-                                .help("Add custom config file")
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.trailing, 12)
                     }
+                    .frame(height: 40 * globalZoomLevel)
+           
+                    Button(action: { showFileImporter = true }) {
+                        Image(systemName: "plus.circle")
+                            .resizable()
+                            .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
+                            .foregroundColor(.accentColor)
+                            .help("Add custom config file")
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.trailing, 12)
+                }
 
-                    List(selection: $selectedFile) {
-                        let filteredFiles = configFiles.filter { file in
-                            searchText.isEmpty || file.name.localizedCaseInsensitiveContains(searchText) || file.path.localizedCaseInsensitiveContains(searchText)
-                        }
-                        if filteredFiles.isEmpty {
-                            Text("No config files found")
-                                .font(.system(size: 13 * globalZoomLevel))
-                        } else {
-                            ForEach(filteredFiles) { file in
-                                HStack {
-                                    Text(file.name)
+                List(selection: $selectedFile) {
+                    let filteredFiles = configFiles.filter { file in
+                        searchText.isEmpty || file.name.localizedCaseInsensitiveContains(searchText) || file.path.localizedCaseInsensitiveContains(searchText)
+                    }
+                    if filteredFiles.isEmpty {
+                        Text("No config files found")
+                            .font(.system(size: 13 * globalZoomLevel))
+                    } else {
+                        ForEach(filteredFiles) { file in
+                            HStack {
+                                Text(file.name)
+                                    .font(.system(size: 13 * globalZoomLevel))
+                                Spacer()
+                                if file.isPinned {
+                                    Image(systemName: "pin.fill")
+                                        .foregroundColor(.accentColor)
                                         .font(.system(size: 13 * globalZoomLevel))
-                                    Spacer()
+                                }
+                            }
+                            .padding(.vertical, 4 * globalZoomLevel)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
+                            )
+                            .cornerRadius(6)
+                            .tag(file as ConfigFile?)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedFile = file
+                                loadFileContent(file: file)
+                            }
+                            .contextMenu {
+                                Button(action: {
+                                    togglePin(for: file)
+                                }) {
                                     if file.isPinned {
-                                        Image(systemName: "pin.fill")
-                                            .foregroundColor(.accentColor)
-                                            .font(.system(size: 13 * globalZoomLevel))
+                                        Label("Unpin", systemImage: "pin.slash")
+                                    } else {
+                                        Label("Pin", systemImage: "pin")
                                     }
                                 }
-                                .padding(.vertical, 4 * globalZoomLevel)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
-                                )
-                                .cornerRadius(6)
-                                .tag(file as ConfigFile?)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedFile = file
-                                    loadFileContent(file: file)
+                                
+                                Button(action: {
+                                    copyPathToClipboard(file.path)
+                                }) {
+                                    Label("Copy Path", systemImage: "doc.on.doc")
                                 }
-                                .contextMenu {
-                                    Button(action: {
-                                        togglePin(for: file)
-                                    }) {
-                                        if file.isPinned {
-                                            Label("Unpin", systemImage: "pin.slash")
-                                        } else {
-                                            Label("Pin", systemImage: "pin")
-                                        }
-                                    }
-                                    
-                                    Button(action: {
-                                        copyPathToClipboard(file.path)
-                                    }) {
-                                        Label("Copy Path", systemImage: "doc.on.doc")
-                                    }
-                                    
-                                    Button(action: {
-                                        openInFinder(file.path)
-                                    }) {
-                                        Label("Open in Finder", systemImage: "folder")
-                                    }
-                                    
-                                    Button(action: {
-                                        openInCode(file.path)
-                                    }) {
-                                        Label("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right")
-                                    }
-                                    
-                                    Button(action: {
-                                        openInCursor(file.path)
-                                    }) {
-                                        Label("Open in Cursor", systemImage: "cursorarrow")
-                                    }
-                                    
-                                    Button(role: .destructive, action: {
-                                        contextMenuFile = file
-                                        showDeleteAlert = true
-                                    }) {
-                                        Label("Delete", systemImage: "trash")
-                                    }
+                                
+                                Button(action: {
+                                    openInFinder(file.path)
+                                }) {
+                                    Label("Open in Finder", systemImage: "folder")
+                                }
+                                
+                                Button(action: {
+                                    openInCode(file.path)
+                                }) {
+                                    Label("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                                }
+                                
+                                Button(action: {
+                                    openInCursor(file.path)
+                                }) {
+                                    Label("Open in Cursor", systemImage: "cursorarrow")
+                                }
+                                
+                                Button(role: .destructive, action: {
+                                    contextMenuFile = file
+                                    showDeleteAlert = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
                                 }
                             }
-                        }
-                    }
-                    .frame(minWidth: 200 * globalZoomLevel)
-                    .onAppear {
-                        setupInitialConfigs()
-                        sortConfigFiles()
-                        if let first = configFiles.first {
-                            selectedFile = first
-                            loadFileContent(file: first)
-                        }
-                       
-                        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                            if event.modifierFlags.contains(.command) {
-                                if event.charactersIgnoringModifiers == "f" {
-                                    showEditorSearchBar = true
-                                    DispatchQueue.main.async {
-                                        searchFieldFocused = true
-                                    }
-                                    return nil
-                                }
-                                if event.charactersIgnoringModifiers == "s" {
-                                    saveFileContent()
-                                    return nil
-                                }
-                                if event.charactersIgnoringModifiers == "=" || event.charactersIgnoringModifiers == "+" {
-                                    globalZoomLevel = min(2.0, globalZoomLevel + 0.1) // Max zoom 2.0
-                                    return nil
-                                }
-                                if event.charactersIgnoringModifiers == "-" {
-                                    globalZoomLevel = max(0.5, globalZoomLevel - 0.1) // Min zoom 0.5
-                                    return nil
-                                }
-                                if event.charactersIgnoringModifiers == "0" {
-                                    globalZoomLevel = 1.0 // Reset zoom
-                                    return nil
-                                }
-                            }
-                            if event.keyCode == 53 { // 53 = esc
-                                if showEditorSearchBar {
-                                    showEditorSearchBar = false
-                                    editorSearchText = "" 
-                                    return nil
-                                }
-                            }
-                            if event.keyCode == 36 || event.keyCode == 76 { // Enter or Return
-                                if showEditorSearchBar {
-                                    editorViewRef?.findNext(editorSearchText)
-                                    return nil
-                                }
-                            }
-                            return event
-                        }
-                    }
-                    .onDisappear {
-                    
-                        if let monitor = keyMonitor {
-                            NSEvent.removeMonitor(monitor)
-                            keyMonitor = nil
-                        }
-                    }
-                    .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
-                        switch result {
-                        case .success(let urls):
-                            if let url = urls.first {
-                                let name = url.lastPathComponent
-                                let path = url.path
-                             
-                                if !configFiles.contains(where: { $0.path == path }) {
-                                    let newConfig = ConfigFile(name: name, path: path, isCustom: true)
-                                    configFiles.append(newConfig)
-                                    sortConfigFiles()
-                                    selectedFile = newConfig
-                                    loadFileContent(file: newConfig)
-                                    saveAllConfigs()
-                                }
-                            }
-                        default:
-                            break
                         }
                     }
                 }
+                .onAppear {
+                    setupInitialConfigs()
+                    sortConfigFiles()
+                    if let first = configFiles.first {
+                        selectedFile = first
+                        loadFileContent(file: first)
+                    }
+                   
+                    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                        if event.modifierFlags.contains(.command) {
+                            if event.charactersIgnoringModifiers == "f" {
+                                showEditorSearchBar = true
+                                DispatchQueue.main.async {
+                                    searchFieldFocused = true
+                                }
+                                return nil
+                            }
+                            if event.charactersIgnoringModifiers == "s" {
+                                saveFileContent()
+                                return nil
+                            }
+                            if event.charactersIgnoringModifiers == "=" || event.charactersIgnoringModifiers == "+" {
+                                globalZoomLevel = min(2.0, globalZoomLevel + 0.1) // Max zoom 2.0
+                                return nil
+                            }
+                            if event.charactersIgnoringModifiers == "-" {
+                                globalZoomLevel = max(0.5, globalZoomLevel - 0.1) // Min zoom 0.5
+                                return nil
+                            }
+                            if event.charactersIgnoringModifiers == "0" {
+                                globalZoomLevel = 1.0 // Reset zoom
+                                return nil
+                            }
+                        }
+                        if event.keyCode == 53 { // 53 = esc
+                            if showEditorSearchBar {
+                                showEditorSearchBar = false
+                                editorSearchText = ""
+                                return nil
+                            }
+                        }
+                        if event.keyCode == 36 || event.keyCode == 76 { // Enter or Return
+                            if showEditorSearchBar {
+                                editorViewRef?.findNext(editorSearchText)
+                                return nil
+                            }
+                        }
+                        return event
+                    }
+                }
+                .onDisappear {
+                
+                    if let monitor = keyMonitor {
+                        NSEvent.removeMonitor(monitor)
+                        keyMonitor = nil
+                    }
+                }
+                .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+                    switch result {
+                    case .success(let urls):
+                        if let url = urls.first {
+                            let name = url.lastPathComponent
+                            let path = url.path
+                         
+                            if !configFiles.contains(where: { $0.path == path }) {
+                                let newConfig = ConfigFile(name: name, path: path, isCustom: true)
+                                configFiles.append(newConfig)
+                                sortConfigFiles()
+                                selectedFile = newConfig
+                                loadFileContent(file: newConfig)
+                                saveAllConfigs()
+                            }
+                        }
+                    default:
+                        break
+                    }
+                }
             }
-
-
+            .frame(minWidth: 200 * globalZoomLevel)
+        } detail: {
             VStack(spacing: 0) {
                 if showEditorSearchBar {
                     HStack {
