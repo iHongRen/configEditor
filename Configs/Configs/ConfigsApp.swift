@@ -14,4 +14,8 @@ struct ConfigsApp: App {
             ContentView()
         }
     }
+    
+    init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
 }
