@@ -244,6 +244,7 @@ struct ContentView: View {
                                 }
                             }
                             .padding(.vertical, 4 * globalZoomLevel)
+                            .padding(.horizontal, 8 * globalZoomLevel)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
@@ -259,42 +260,56 @@ struct ContentView: View {
                                 Button(action: {
                                     togglePin(for: file)
                                 }) {
-                                    if file.isPinned {
-                                        Label("Unpin", systemImage: "pin.slash")
-                                    } else {
-                                        Label("Pin", systemImage: "pin")
+                                    HStack {
+                                        Image(systemName: file.isPinned ? "pin.slash" : "pin")
+                                        Text(file.isPinned ? "Unpin" : "Pin")
                                     }
                                 }
                                 
                                 Button(action: {
                                     copyPathToClipboard(file.path)
                                 }) {
-                                    Label("Copy Path", systemImage: "doc.on.doc")
+                                    HStack {
+                                        Image(systemName: "doc.on.doc")
+                                        Text("Copy Path")
+                                    }
                                 }
                                 
                                 Button(action: {
                                     openInFinder(file.path)
                                 }) {
-                                    Label("Open in Finder", systemImage: "folder")
+                                    HStack {
+                                        Image(systemName: "folder")
+                                        Text("Open in Finder")
+                                    }
                                 }
                                 
                                 Button(action: {
                                     openInCode(file.path)
                                 }) {
-                                    Label("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                                    HStack {
+                                        Image(systemName: "highlighter")
+                                        Text("Open in VSCode")
+                                    }
                                 }
                                 
                                 Button(action: {
                                     openInCursor(file.path)
                                 }) {
-                                    Label("Open in Cursor", systemImage: "cursorarrow")
+                                    HStack {
+                                        Image(systemName: "rectangle.and.pencil.and.ellipsis")
+                                        Text("Open in Cursor")
+                                    }
                                 }
                                 
                                 Button(role: .destructive, action: {
                                     contextMenuFile = file
                                     showDeleteAlert = true
                                 }) {
-                                    Label("Delete", systemImage: "trash")
+                                    HStack {
+                                        Image(systemName: "trash")
+                                        Text("Delete")
+                                    }
                                 }
                             }
                         }
@@ -723,36 +738,40 @@ struct ContentView: View {
     
     // 在 VS Code 中打开
     private func openInCode(_ path: String) {
-        // 首先尝试使用 NSWorkspace 打开
-        let success = NSWorkspace.shared.openFile(path, withApplication: "Visual Studio Code")
+        let fileURL = URL(fileURLWithPath: path)
+        let appURL = URL(fileURLWithPath: "/Applications/Visual Studio Code.app")
         
-        // 如果失败，尝试使用命令行方式
-        if !success {
-            let process = Process()
-            process.launchPath = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
-            process.arguments = [path]
-            do {
-                try process.run()
-            } catch {
-                print("Failed to open in VS Code: \(error)")
+        NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: .init()) { (app, error) in
+            if app == nil {
+                // 如果通过 NSWorkspace 打开失败，尝试使用命令行方式
+                let process = Process()
+                process.launchPath = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+                process.arguments = [path]
+                do {
+                    try process.run()
+                } catch {
+                    print("Failed to open in VS Code: \(error)")
+                }
             }
         }
     }
     
     // 在 Cursor 中打开
     private func openInCursor(_ path: String) {
-        // 首先尝试使用 NSWorkspace 打开
-        let success = NSWorkspace.shared.openFile(path, withApplication: "Cursor")
+        let fileURL = URL(fileURLWithPath: path)
+        let appURL = URL(fileURLWithPath: "/Applications/Cursor.app")
         
-        // 如果失败，尝试使用命令行方式
-        if !success {
-            let process = Process()
-            process.launchPath = "/Applications/Cursor.app/Contents/MacOS/Cursor"
-            process.arguments = [path]
-            do {
-                try process.run()
-            } catch {
-                print("Failed to open in Cursor: \(error)")
+        NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: .init()) { (app, error) in
+            if app == nil {
+                // 如果通过 NSWorkspace 打开失败，尝试使用命令行方式
+                let process = Process()
+                process.launchPath = "/Applications/Cursor.app/Contents/MacOS/Cursor"
+                process.arguments = [path]
+                do {
+                    try process.run()
+                } catch {
+                    print("Failed to open in Cursor: \(error)")
+                }
             }
         }
     }
