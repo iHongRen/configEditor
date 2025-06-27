@@ -11,14 +11,11 @@ import SwiftUI
 import Foundation
 
 enum ColorSchemeOption: String, CaseIterable {
-    case system = "System"
     case light = "Light"
     case dark = "Dark"
 
     var colorScheme: ColorScheme? {
         switch self {
-        case .system:
-            return nil
         case .light:
             return .light
         case .dark:
@@ -79,7 +76,7 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var showFileImporter: Bool = false
     @AppStorage("globalZoomLevel") private var globalZoomLevel: Double = 1.0 // Default 1.0
-    @AppStorage("colorScheme") private var colorSchemeOption: ColorSchemeOption = .system
+    @AppStorage("colorScheme") private var colorSchemeOption: ColorSchemeOption = .dark
 
     // Editor-related states
     @State private var editorSearchText: String = ""
@@ -215,24 +212,6 @@ struct ContentView: View {
                         }
                     }
                     .frame(height: 40 * globalZoomLevel)
-           
-                    Menu {
-                        Picker("Appearance", selection: $colorSchemeOption) {
-                            ForEach(ColorSchemeOption.allCases, id: \.self) {
-                                option in
-                                Text(option.rawValue).tag(option)
-                            }
-                        }
-                        .pickerStyle(InlinePickerStyle())
-                    } label: {
-                        Image(systemName: "paintbrush")
-                            .resizable()
-                            .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
-                            .foregroundColor(.accentColor)
-                            .help("Change appearance")
-                    }
-                    .menuStyle(BorderlessButtonMenuStyle())
-                    .padding(.trailing, 8)
 
                     Button(action: { showFileImporter = true }) {
                         Image(systemName: "plus.circle")
@@ -479,6 +458,21 @@ struct ContentView: View {
                 .frame(height: 24 * globalZoomLevel)
             }
             .frame(minWidth: 400 * globalZoomLevel)
+            .toolbar {
+                Menu {
+                    Picker("Appearance", selection: $colorSchemeOption) {
+                        ForEach(ColorSchemeOption.allCases, id: \.self) {
+                            option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(InlinePickerStyle())
+                } label: {
+                    Image(systemName: colorSchemeOption == .dark ? "moon.fill" : "sun.max.fill")
+                        .foregroundColor(.accentColor)
+                        .help("Change appearance")
+                }
+            }
         }
         .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
         .alert("Delete Config File", isPresented: $showDeleteAlert) {
