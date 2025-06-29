@@ -411,6 +411,9 @@ struct ContentView: View {
                             .onSubmit {
                                 editorViewRef?.findNext(editorSearchText)
                             }
+                            .onChange(of: editorSearchText) {
+                                editorViewRef?.findNext(editorSearchText)
+                            }
                         Button(action: {
                             editorViewRef?.findNext(editorSearchText)
                         }) {
