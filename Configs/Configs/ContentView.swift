@@ -87,6 +87,9 @@ struct ContentView: View {
     @State private var fileModificationDate: Date? = nil
     @FocusState private var searchFieldFocused: Bool
     
+    @State private var editorMatchCount: Int = 0
+    @State private var editorCurrentMatchIndex: Int = 0
+    
     // 添加右键菜单状态
     @State private var contextMenuFile: ConfigFile?
     @State private var showDeleteAlert = false
@@ -424,9 +427,14 @@ struct ContentView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Find previous")
+                       
+                        Text("\(editorCurrentMatchIndex) of \(editorMatchCount)")
+                            .font(.system(size: 11 * globalZoomLevel))
+                            .foregroundColor(.secondary)
+                        
                         Button(action: {
                             showEditorSearchBar = false
-                            editorSearchText = "" 
+                            editorSearchText = ""
                         }) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 13 * globalZoomLevel))
@@ -448,7 +456,9 @@ struct ContentView: View {
                                    searchFieldFocused = true
                                }
                            },
-                           zoomLevel: globalZoomLevel)
+                           zoomLevel: globalZoomLevel,
+                           matchCount: $editorMatchCount,
+                           currentMatchIndex: $editorCurrentMatchIndex)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                
                 Divider()

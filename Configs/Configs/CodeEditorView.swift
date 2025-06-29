@@ -17,6 +17,8 @@ struct CodeEditorView: NSViewRepresentable {
     var showSearchBar: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
     var zoomLevel: Double
+    @Binding var matchCount: Int
+    @Binding var currentMatchIndex: Int
     
     @Environment(\.colorScheme) private var colorScheme
 
@@ -94,7 +96,7 @@ struct CodeEditorView: NSViewRepresentable {
         applyHighlighting(context: context)
         
         DispatchQueue.main.async {
-            ref = Ref(textView: textView, coordinator: context.coordinator)
+            ref = Ref(textView: textView, coordinator: context.coordinator, matchCount: $matchCount, currentMatchIndex: $currentMatchIndex)
         }
         
         return scrollView
@@ -120,6 +122,9 @@ struct CodeEditorView: NSViewRepresentable {
         if context.coordinator.lastSearch != search {
             context.coordinator.lastSearch = search
             needsHighlight = true
+            if search.isEmpty {
+                ref?.resetCounts()
+            }
         }
         
         if let currentFont = textView.font, abs(currentFont.pointSize - (14 * zoomLevel)) > 0.1 {
@@ -240,49 +245,88 @@ struct CodeEditorView: NSViewRepresentable {
         }
     }
 
-    class Ref {
+    class Ref { // Added comment to force recompile
         weak var textView: NSTextView?
         weak var coordinator: Coordinator?
+        var matchCount: Binding<Int>
+        var currentMatchIndex: Binding<Int>
         
-        init(textView: NSTextView, coordinator: Coordinator) {
+        init(textView: NSTextView, coordinator: Coordinator, matchCount: Binding<Int>, currentMatchIndex: Binding<Int>) {
             self.textView = textView
             self.coordinator = coordinator
+            self.matchCount = matchCount
+            self.currentMatchIndex = currentMatchIndex
         }
         
         func findNext(_ text: String) {
             guard let tv = textView, !text.isEmpty else { return }
             let ns = tv.string as NSString
+            let fullRange = NSRange(location: 0, length: ns.length)
+            
+            let matches = (try? NSRegularExpression(pattern: text, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
+            self.matchCount.wrappedValue = matches.count
+            
+            if matches.isEmpty { 
+                self.currentMatchIndex.wrappedValue = 0
+                return 
+            }
+            
             let sel = tv.selectedRange()
-            let searchRange = NSRange(location: sel.upperBound, length: ns.length - sel.upperBound)
-            let r = ns.range(of: text, options: .caseInsensitive, range: searchRange)
-            if r.location != NSNotFound {
-                tv.scrollRangeToVisible(r)
-                tv.setSelectedRange(r)
-            } else {
-                let r2 = ns.range(of: text, options: .caseInsensitive)
-                if r2.location != NSNotFound {
-                    tv.scrollRangeToVisible(r2)
-                    tv.setSelectedRange(r2)
+            var nextMatchIndex = -1
+            
+            for (index, match) in matches.enumerated() {
+                if match.range.location >= sel.upperBound {
+                    nextMatchIndex = index
+                    break
                 }
             }
+            
+            if nextMatchIndex == -1 { // Wrap around to the beginning
+                nextMatchIndex = 0
+            }
+            
+            let r = matches[nextMatchIndex].range
+            tv.scrollRangeToVisible(r)
+            tv.setSelectedRange(r)
+            self.currentMatchIndex.wrappedValue = nextMatchIndex + 1
         }
         
         func findPrevious(_ text: String) {
             guard let tv = textView, !text.isEmpty else { return }
             let ns = tv.string as NSString
+            let fullRange = NSRange(location: 0, length: ns.length)
+            
+            let matches = (try? NSRegularExpression(pattern: text, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
+            self.matchCount.wrappedValue = matches.count
+            
+            if matches.isEmpty { 
+                self.currentMatchIndex.wrappedValue = 0
+                return 
+            }
+            
             let sel = tv.selectedRange()
-            let searchRange = NSRange(location: 0, length: sel.location)
-            let r = ns.range(of: text, options: [.backwards, .caseInsensitive], range: searchRange)
-            if r.location != NSNotFound {
-                tv.scrollRangeToVisible(r)
-                tv.setSelectedRange(r)
-            } else {
-                let r2 = ns.range(of: text, options: [.backwards, .caseInsensitive])
-                if r2.location != NSNotFound {
-                    tv.scrollRangeToVisible(r2)
-                    tv.setSelectedRange(r2)
+            var prevMatchIndex = -1
+            
+            for (index, match) in matches.enumerated().reversed() {
+                if match.range.location < sel.location {
+                    prevMatchIndex = index
+                    break
                 }
             }
+            
+            if prevMatchIndex == -1 { // Wrap around to the end
+                prevMatchIndex = matches.count - 1
+            }
+            
+            let r = matches[prevMatchIndex].range
+            tv.scrollRangeToVisible(r)
+            tv.setSelectedRange(r)
+            self.currentMatchIndex.wrappedValue = prevMatchIndex + 1
+        }
+        
+        func resetCounts() {
+            matchCount.wrappedValue = 0
+            currentMatchIndex.wrappedValue = 0
         }
     }
 }
