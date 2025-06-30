@@ -370,7 +370,6 @@ struct ContentView: View {
                     }
                 }
                 .onDisappear {
-                
                     if let monitor = keyMonitor {
                         NSEvent.removeMonitor(monitor)
                         keyMonitor = nil
