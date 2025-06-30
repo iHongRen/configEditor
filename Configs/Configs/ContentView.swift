@@ -246,6 +246,7 @@ struct ContentView: View {
                                         .font(.system(size: 13 * globalZoomLevel))
                                 }
                             }
+                            .help(file.path)
                             .padding(.vertical, 4 * globalZoomLevel)
                             .padding(.horizontal, 8 * globalZoomLevel)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -402,7 +403,6 @@ struct ContentView: View {
                 if showEditorSearchBar {
                     HStack {
                         TextField("Search content...", text: $editorSearchText)
-                            .textFieldStyle(.roundedBorder)
                             .frame(width: 200 * globalZoomLevel)
                             .disableAutocorrection(true)
                             .help("Search in current file (Press Enter for next)")
