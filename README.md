@@ -1,8 +1,13 @@
 # Configs
 
-Configs is a **macOS** **application** designed to help you easily manage and edit your configuration files.
+[中文README](./README_zh.md)
 
- It automatically scans for common configuration files across various programming languages and tools, provides a convenient interface for viewing and editing them, and allows you to add your own custom configuration files.
+Configs is a **macOS** **application** designed to help you easily manage and edit your configuration files. Based on SwiftUI.
+
+It automatically scans for common configuration files across various programming languages and tools, provides a convenient interface for viewing and editing them, and allows you to add your own custom configuration files.
+
+When editing files like `.zshrc` and `.bashrc`, it automatically executes `source`, making changes take effect immediately.
+
 
 ## Screenshots
 
