@@ -10,6 +10,8 @@ import AppKit // Import AppKit for NSApplication
 
 @main
 struct ConfigsApp: App {
+    let githubURLString = "https://github.com/iHongRen/configEditor"
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -20,14 +22,14 @@ struct ConfigsApp: App {
                     let appName = Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "Configs"
                     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
 
-                    let creditsString = "https://github.com/iHongRen/configEditor"
+                    let creditsString = githubURLString
                     
                     let attributedCredits = NSMutableAttributedString(string: creditsString, attributes: [
                         .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
                     ])
 
-                    if let githubRange = creditsString.range(of: creditsString) {
-                        attributedCredits.addAttribute(.link, value: creditsString, range: NSRange(githubRange, in: creditsString))
+                    if let githubRange = creditsString.range(of: githubURLString) {
+                        attributedCredits.addAttribute(.link, value: URL(string: githubURLString)!, range: NSRange(githubRange, in: creditsString))
                     }
 
                     NSApplication.shared.orderFrontStandardAboutPanel(options: [
@@ -36,6 +38,31 @@ struct ConfigsApp: App {
                         .credits: attributedCredits,
                         .applicationIcon: NSImage(named: "AppIcon")!
                     ])
+                }
+            }
+            
+            // Add a new CommandGroup for Help menu items
+            CommandGroup(replacing: .help) { // Replace the default Help menu
+                Button("Keyboard Shortcuts") {
+                    // Display an alert with shortcuts
+                    let shortcuts = """
+                    Cmd + F: Show/Hide Search Bar
+                    Cmd + S: Save File
+                    Cmd + = / Cmd + +: Zoom In
+                    Cmd + -: Zoom Out
+                    Cmd + 0: Reset Zoom
+                    Esc: Close Search Bar
+                    """
+                    let alert = NSAlert()
+                    alert.messageText = "Keyboard Shortcuts"
+                    alert.informativeText = shortcuts
+                    alert.runModal()
+                }
+                
+                Button("View on GitHub") {
+                    if let url = URL(string: githubURLString) {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
             }
         }
