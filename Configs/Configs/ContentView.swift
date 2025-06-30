@@ -520,6 +520,10 @@ struct ContentView: View {
         guard let file = selectedFile else { return }
         do {
             try fileContent.write(toFile: file.path, atomically: true, encoding: .utf8)
+            // Update modification date after saving
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            fileModificationDate = attributes[.modificationDate] as? Date
+            
             // 检查是否为 Zsh 或 Bash 配置文件
             if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {
                 let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
