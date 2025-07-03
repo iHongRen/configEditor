@@ -1,6 +1,6 @@
 # Configs
 
-[中文README](./README_zh.md)
+[中文 README](./README_zh.md)
 
 Configs is a **macOS** **application** designed to help you easily manage and edit your configuration files. Based on SwiftUI.
 
