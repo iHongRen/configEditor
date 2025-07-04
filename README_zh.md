@@ -47,5 +47,15 @@ Configs 是一款 **macOS** **应用程序**，旨在帮助您轻松管理和编
 2. **在 Xcode 中打开**：
    在 Xcode 中打开 `Configs.xcodeproj` 文件。
 
-3. **构建并运行**：
-   选择您的目标（例如，“My Mac”），然后单击 Xcode 中的“运行”按钮（▶️）。
+3. **构建应用程序**：
+   选择您的目标（例如，“My Mac”），然后单击 Xcode 中的“构建”按钮（⌘B）。`Configs.app` 将在 Xcode 项目导航器中的 `Products` 文件夹中生成。您可以右键单击 `Configs.app` 并选择“在 Finder 中显示”来找到它。
+
+4. **安装并运行**：
+   解压 release 中的 configs.zip 后， 将 `Configs.app` 包拖到您的 `/Applications` 文件夹中。
+   打开终端并运行以下命令，使应用程序可执行：
+
+   ```bash
+   chmod +x /Applications/Configs.app/Contents/MacOS/Configs
+   ```
+   现在您可以从 `/Applications` 文件夹或 Launchpad 打开应用程序。
+
