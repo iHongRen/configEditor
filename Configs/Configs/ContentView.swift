@@ -306,6 +306,15 @@ struct ContentView: View {
                                     }
                                 }
                                 
+                                Button(action: {
+                                    openInTerminal(file.path)
+                                }) {
+                                    HStack {
+                                        Image(systemName: "terminal")
+                                        Text("Open in Terminal")
+                                    }
+                                }
+                                
                                 Button(role: .destructive, action: {
                                     contextMenuFile = file
                                     showDeleteAlert = true
@@ -789,6 +798,32 @@ struct ContentView: View {
                     print("Failed to open in Cursor: \(error)")
                 }
             }
+        }
+    }
+    
+    // 在终端中打开
+    private func openInTerminal(_ path: String) {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        let exists = fileManager.fileExists(atPath: path, isDirectory: &isDirectory)
+
+        let directoryPath: String
+        if exists && isDirectory.boolValue {
+            directoryPath = path
+        } else {
+            directoryPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        }
+
+        let terminalApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") != nil ? "iTerm" : "Terminal"
+
+        let process = Process()
+        process.launchPath = "/usr/bin/open"
+        process.arguments = ["-a", terminalApp, directoryPath]
+        
+        do {
+            try process.run()
+        } catch {
+            print("Failed to open in terminal: \(error)")
         }
     }
     
