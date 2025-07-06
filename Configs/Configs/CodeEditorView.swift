@@ -86,6 +86,12 @@ struct CodeEditorView: NSViewRepresentable {
         textView.allowsUndo = true
         textView.autoresizingMask = [.width, .height]
         
+        // Disable smart quotes and other automatic substitutions for a better code editing experience
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        
         scrollView.documentView = textView
         
         context.coordinator.textView = textView
