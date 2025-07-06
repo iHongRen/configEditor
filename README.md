@@ -60,8 +60,9 @@ To install and run Configs, you will need Xcode installed on your macOS machine.
     Select your target (e.g., "My Mac") and click the "Build" button (⌘B) in Xcode. The `Configs.app` will be generated in the `Products` folder within Xcode's project navigator. You can right-click on `Configs.app` and select "Show in Finder" to locate it.
 
 4.  **Install and Run**:
-    unzip `Configs.app.zip` , drag the `Configs.app` bundle to your `/Applications` folder.
+    unzip [Configs.zip](https://github.com/iHongRen/configEditor/releases/tag/v1.0) , drag the `Configs.app` bundle to your `/Applications` folder.
     Open Terminal and run the following command to make the application executable:
+    
     ```bash
     chmod +x /Applications/Configs.app/Contents/MacOS/Configs
     ```
