@@ -132,6 +132,11 @@ struct CodeEditorView: NSViewRepresentable {
             needsHighlight = true
         }
         
+        if context.coordinator.textChanged {
+            needsHighlight = true
+            context.coordinator.textChanged = false
+        }
+
         if needsHighlight {
             applyHighlighting(context: context)
         }
@@ -234,6 +239,7 @@ struct CodeEditorView: NSViewRepresentable {
         
         var lastColorScheme: ColorScheme?
         var lastSearch: String = ""
+        var textChanged: Bool = false
 
         init(_ parent: CodeEditorView) {
             self.parent = parent
@@ -242,6 +248,7 @@ struct CodeEditorView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             self.parent.text = textView.string
+            self.textChanged = true
         }
     }
 
