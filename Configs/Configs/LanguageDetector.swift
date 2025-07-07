@@ -11,7 +11,7 @@ struct LanguageDetector {
     static func detectLanguage(_ name: String?) -> String {
         guard let n = name?.lowercased() else { return "" }
         
-        // Shell 相关配置文件
+        // Shell related config files
         if n.hasSuffix(".sh") || n.hasSuffix(".zsh") || n.hasSuffix(".bash") || 
            n.hasPrefix(".zsh") || n.hasPrefix(".bash") || 
            n.hasSuffix(".profile") || n.hasSuffix(".zprofile") || 
@@ -25,13 +25,13 @@ struct LanguageDetector {
             return "sh"
         }
         
-        // Git 相关配置文件
+        // Git related config files
         if n.hasSuffix(".gitconfig") || n.hasSuffix(".gitignore") || 
            n.hasSuffix(".gitattributes") || n.hasSuffix(".gitmodules") {
             return "git"
         }
         
-        // Node.js 相关配置文件
+        // Node.js related config files
         if n.hasSuffix(".npmrc") || n.hasSuffix(".yarnrc") || 
            n.hasSuffix(".nvmrc") || n.hasSuffix(".npmignore") ||
            n.hasSuffix(".prettierrc") || n.hasSuffix(".prettierignore") ||
@@ -43,14 +43,14 @@ struct LanguageDetector {
             return "json"
         }
         
-        // Python 相关配置文件
+        // Python related config files
         if n.hasSuffix(".pypirc") || n.hasSuffix(".pythonrc") ||
            n.hasSuffix(".condarc") || n.hasSuffix("jupyter_notebook_config.py") ||
            n.hasSuffix("ipython_config.py") {
             return "py"
         }
         
-        // Ruby 相关配置文件
+        // Ruby related config files
         if n.hasSuffix(".irbrc") || n.hasSuffix(".pryrc") ||
            n.hasSuffix(".gemrc") || n.hasSuffix(".railsrc") ||
            n.hasSuffix(".rspec") || n.hasSuffix(".rubocop.yml") ||
@@ -58,53 +58,53 @@ struct LanguageDetector {
             return "ruby"
         }
         
-        // Java 相关配置文件
+        // Java related config files
         if n.hasSuffix("settings.xml") || n.hasSuffix("pom.xml") ||
            n.hasSuffix("gradle.properties") || n.hasSuffix("gradle-wrapper.properties") {
             return "xml"
         }
         
-        // Go 相关配置文件
+        // Go related config files
         if n.hasSuffix(".goenv") || n.hasSuffix(".gorc") {
             return "go"
         }
         
-        // Rust 相关配置文件
+        // Rust
         if n.hasSuffix("Cargo.toml") || n.hasSuffix("rustfmt.toml") ||
            n.hasSuffix("clippy.toml") {
             return "toml"
         }
         
-        // PHP 相关配置文件
+        // PHP
         if n.hasSuffix(".phpenv") || n.hasSuffix(".php.ini") {
             return "php"
         }
         
-        // C/C++ 相关配置文件
+        // C/C++
         if n.hasSuffix(".clang-format") || n.hasSuffix(".clang-tidy") ||
            n.hasSuffix(".gdbinit") || n.hasSuffix(".lldbinit") {
             return "cpp"
         }
         
-        // R 相关配置文件
+        // R
         if n.hasSuffix(".Rprofile") || n.hasSuffix(".Renviron") ||
            n.hasSuffix(".Rhistory") {
             return "r"
         }
         
-        // Docker 相关配置文件
+        // Docker
         if n.hasSuffix("Dockerfile") || n.hasSuffix(".dockerignore") ||
            n.hasSuffix("docker-compose.yml") || n.hasSuffix("docker-compose.yaml") {
             return "docker"
         }
         
-        // 数据库相关配置文件
+        // sql
         if n.hasSuffix(".my.cnf") || n.hasSuffix(".psqlrc") ||
            n.hasSuffix(".pgpass") || n.hasSuffix(".sqliterc") {
             return "sql"
         }
         
-        // 其他常见配置文件
+        // other
         if n.hasSuffix(".json") { return "json" }
         if n.hasSuffix(".yml") || n.hasSuffix(".yaml") { return "yml" }
         if n.hasSuffix(".py") || n.hasPrefix(".python") { return "py" }
