@@ -118,11 +118,14 @@ struct CodeEditorView: NSViewRepresentable {
             needsHighlight = true
         }
         
-        if textView.string != text {
+        // If the text change comes from the parent view, update the text view
+        if textView.string != text && !context.coordinator.textChanged {
             let selectedRange = textView.selectedRange()
             textView.string = text
             textView.setSelectedRange(selectedRange)
             needsHighlight = true
+            // Ensure the selected range is visible after external text update
+            textView.scrollRangeToVisible(selectedRange)
         }
         
         if context.coordinator.lastSearch != search {
@@ -156,7 +159,7 @@ struct CodeEditorView: NSViewRepresentable {
         let fullRange = NSRange(location: 0, length: textStorage.length)
         
         let selectedRange = textView.selectedRange()
-        
+
         textStorage.beginEditing()
         
         textStorage.setAttributes([
@@ -255,6 +258,8 @@ struct CodeEditorView: NSViewRepresentable {
             guard let textView = notification.object as? NSTextView else { return }
             self.parent.text = textView.string
             self.textChanged = true
+            // Ensure the cursor is visible after text changes
+            textView.scrollRangeToVisible(textView.selectedRange())
         }
     }
 
