@@ -34,7 +34,7 @@ class ConfigManager: ObservableObject {
             }
         } else {
             // First launch or cleared data: scan the filesystem
-            configFiles = scanForDefaultConfigFiles()
+            configFiles = CommonConfigData.scanForDefaultConfigFiles()
             // Persist the scanned files for next launch
             saveAllConfigs()
         }
