@@ -69,42 +69,42 @@ struct LanguageDetector {
             return "go"
         }
         
-        // Rust
+        // Rust related config files
         if n.hasSuffix("Cargo.toml") || n.hasSuffix("rustfmt.toml") ||
            n.hasSuffix("clippy.toml") {
             return "toml"
         }
         
-        // PHP
+        // PHP related config files
         if n.hasSuffix(".phpenv") || n.hasSuffix(".php.ini") {
             return "php"
         }
         
-        // C/C++
+        // C/C++ related config files
         if n.hasSuffix(".clang-format") || n.hasSuffix(".clang-tidy") ||
            n.hasSuffix(".gdbinit") || n.hasSuffix(".lldbinit") {
             return "cpp"
         }
         
-        // R
+        // R related config files
         if n.hasSuffix(".Rprofile") || n.hasSuffix(".Renviron") ||
            n.hasSuffix(".Rhistory") {
             return "r"
         }
         
-        // Docker
+        // Docker related config files
         if n.hasSuffix("Dockerfile") || n.hasSuffix(".dockerignore") ||
            n.hasSuffix("docker-compose.yml") || n.hasSuffix("docker-compose.yaml") {
             return "docker"
         }
         
-        // sql
+        // SQL related config files
         if n.hasSuffix(".my.cnf") || n.hasSuffix(".psqlrc") ||
            n.hasSuffix(".pgpass") || n.hasSuffix(".sqliterc") {
             return "sql"
         }
         
-        // other
+        // Other common config files
         if n.hasSuffix(".json") { return "json" }
         if n.hasSuffix(".yml") || n.hasSuffix(".yaml") { return "yml" }
         if n.hasSuffix(".py") || n.hasPrefix(".python") { return "py" }

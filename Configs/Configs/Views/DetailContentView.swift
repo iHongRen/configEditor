@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+
 struct DetailContentView: View {
     @Binding var fileContent: String
     @Binding var selectedFile: ConfigFile?

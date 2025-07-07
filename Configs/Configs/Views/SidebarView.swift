@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+
 struct SidebarView: View {
     @ObservedObject var configManager: ConfigManager
     @Binding var selectedFile: ConfigFile?

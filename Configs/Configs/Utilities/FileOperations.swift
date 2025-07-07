@@ -19,7 +19,7 @@ struct FileOperations {
                 onSaveSuccess(modDate)
             }
             
-            //  Zsh or Bash
+            // Check if it's a Zsh or Bash config file
             if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {
                 let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
                 let sourceCommand = "source \(file.path)"
@@ -98,7 +98,6 @@ struct FileOperations {
         pasteboard.setString(path, forType: .string)
     }
     
-
     static func openInFinder(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }

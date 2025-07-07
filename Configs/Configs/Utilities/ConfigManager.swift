@@ -7,6 +7,7 @@
 
 import Foundation
 
+
 class ConfigManager: ObservableObject {
     @Published var configFiles: [ConfigFile] = []
 

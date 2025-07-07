@@ -6,7 +6,8 @@
 //
 
 import SwiftUI
-import AppKit // Import AppKit for NSApplication
+import AppKit
+
 
 @main
 struct ConfigsApp: App {
