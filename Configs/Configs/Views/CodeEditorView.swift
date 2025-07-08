@@ -154,34 +154,42 @@ struct CodeEditorView: NSViewRepresentable {
     private func applyHighlighting(context: Context) {
         guard let textView = context.coordinator.textView,
               let textStorage = textView.textStorage else { return }
-        
+
         let theme = currentTheme
         let fullRange = NSRange(location: 0, length: textStorage.length)
-        
         let selectedRange = textView.selectedRange()
+        let visibleRect = textView.visibleRect
+        let currentHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
 
         textStorage.beginEditing()
-        
+
         textStorage.setAttributes([
             .foregroundColor: theme.normalText,
             .font: NSFont.monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
         ], range: fullRange)
-        
+
         textView.backgroundColor = theme.background
-        
+
         let patterns = getHighlightPatterns(for: fileExtension, theme: theme)
         for (pattern, color) in patterns {
             highlightPattern(textStorage, pattern, color: color, range: fullRange)
         }
-        
+
         if !search.isEmpty {
             let pattern = NSRegularExpression.escapedPattern(for: search)
             highlightPattern(textStorage, pattern, color: theme.searchHighlight, isBackground: true, range: fullRange)
         }
-        
+
         textStorage.endEditing()
+
+        let newHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
         
-        textView.setSelectedRange(selectedRange)
+        if currentHeight == newHeight {
+            textView.setSelectedRange(selectedRange)
+            textView.scrollRangeToVisible(selectedRange)
+        } else {
+            textView.scrollToVisible(visibleRect)
+        }
     }
 
     private func getHighlightPatterns(for fileExtension: String, theme: Theme) -> [(String, NSColor)] {
