@@ -6,8 +6,6 @@ Configs is a **macOS** **application** designed to help you easily manage and ed
 
 It automatically scans for common configuration files across various programming languages and tools, provides a convenient interface for viewing and editing them, and allows you to add your own custom configuration files.
 
-When editing files like `.zshrc` and `.bashrc`, it automatically executes `source`, making changes take effect immediately.
-
 
 ## Screenshots
 
@@ -16,6 +14,7 @@ When editing files like `.zshrc` and `.bashrc`, it automatically executes `sourc
 ## Features
 
 * **Automatic Discovery**: Scans your home directory for common configuration files (e.g., `.zshrc`, `.gitconfig`, `.vimrc`, `.npmrc`, etc.).
+* **Automatic source**: When editing files like `.zshrc` and `.bashrc`, it automatically executes `source ~/.zshrc`, making changes take effect immediately.
 
 * **File Management**: Add custom configuration files, pin frequently used files for quick access, and delete custom files.
 
@@ -67,5 +66,6 @@ To install and run Configs, you will need Xcode installed on your macOS machine.
     chmod +x /Applications/Configs.app/Contents/MacOS/Configs
     ```
     You can now open the application from your `/Applications` folder or Launchpad.
-
+    
+    If you encounter a popup warning about the application not being trusted, go to **System Preferences** > **Privacy & Security** > **Security** > **Allow Applications from the App Store and Known Developers** > **Open Anyway**
 
