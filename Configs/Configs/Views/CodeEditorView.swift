@@ -8,6 +8,21 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Custom NSTextView for handling keyboard shortcuts
+class CustomTextView: NSTextView {
+    weak var coordinator: CodeEditorView.Coordinator?
+    
+    override func keyDown(with event: NSEvent) {
+        // Handle Cmd+/ for toggle comment
+        if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "/" {
+            coordinator?.toggleComment()
+            return
+        }
+        
+        super.keyDown(with: event)
+    }
+}
+
 struct CodeEditorView: NSViewRepresentable {
     @Binding var text: String
     var fileExtension: String
@@ -22,7 +37,7 @@ struct CodeEditorView: NSViewRepresentable {
     
     @Environment(\.colorScheme) private var colorScheme
 
-    private struct Theme {
+    internal struct Theme {
         let keyword: NSColor
         let string: NSColor
         let comment: NSColor
@@ -80,7 +95,7 @@ struct CodeEditorView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         
-        let textView = NSTextView()
+        let textView = CustomTextView()
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
@@ -95,6 +110,7 @@ struct CodeEditorView: NSViewRepresentable {
         scrollView.documentView = textView
         
         context.coordinator.textView = textView
+        textView.coordinator = context.coordinator
         textView.delegate = context.coordinator
         
         textView.string = text
@@ -120,12 +136,12 @@ struct CodeEditorView: NSViewRepresentable {
         
         // If the text change comes from the parent view, update the text view
         if textView.string != text && !context.coordinator.textChanged {
-            let selectedRange = textView.selectedRange()
             textView.string = text
-            textView.setSelectedRange(selectedRange)
+            // Clear selection when switching configurations (external text update)
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
             needsHighlight = true
-            // Ensure the selected range is visible after external text update
-            textView.scrollRangeToVisible(selectedRange)
+            // Scroll to top when switching configurations
+            textView.scrollRangeToVisible(NSRange(location: 0, length: 0))
         }
         
         if context.coordinator.lastSearch != search {
@@ -201,7 +217,7 @@ struct CodeEditorView: NSViewRepresentable {
         }
     }
 
-    private func getHighlightPatterns(for fileExtension: String, theme: Theme) -> [(String, NSColor)] {
+    internal func getHighlightPatterns(for fileExtension: String, theme: Theme) -> [(String, NSColor)] {
         let ext = fileExtension.lowercased()
         var patterns: [(String, NSColor)] = []
         
@@ -243,7 +259,7 @@ struct CodeEditorView: NSViewRepresentable {
         return patterns
     }
 
-    private func getCommentRanges(for fileExtension: String, in text: String, fullRange: NSRange) -> [NSRange] {
+    internal func getCommentRanges(for fileExtension: String, in text: String, fullRange: NSRange) -> [NSRange] {
         let ext = fileExtension.lowercased()
         var commentPatterns: [String] = []
         
@@ -275,7 +291,7 @@ struct CodeEditorView: NSViewRepresentable {
         return commentRanges
     }
     
-    private func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = []) {
+    internal func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = []) {
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: .caseInsensitive)
             regex.enumerateMatches(in: textStorage.string, options: [], range: range) { match, _, _ in
@@ -316,6 +332,224 @@ struct CodeEditorView: NSViewRepresentable {
             self.textChanged = true
             // Ensure the cursor is visible after text changes
             textView.scrollRangeToVisible(textView.selectedRange())
+        }
+        
+        func toggleComment() {
+            guard let textView = textView else { return }
+            
+            let selectedRange = textView.selectedRange()
+            let fullText = textView.string
+            let nsText = fullText as NSString
+            
+            // Get comment prefix for current file type
+            let commentPrefix = getCommentPrefix(for: parent.fileExtension)
+            
+            // Find all lines that intersect with the selection
+            var linesToProcess: [(lineStart: Int, lineEnd: Int)] = []
+
+            let getLineContentRange = { (range: NSRange) -> (lineStart: Int, lineEnd: Int)? in
+                let lineRange = nsText.lineRange(for: range)
+                guard lineRange.length > 0 else { return nil }
+                let lineStart = lineRange.location
+                let lineText = nsText.substring(with: lineRange)
+                var contentLength = lineRange.length
+                if lineText.hasSuffix("\r\n") {
+                    contentLength -= 2
+                } else if lineText.hasSuffix("\n") {
+                    contentLength -= 1
+                }
+                let lineEnd = lineStart + contentLength
+                return (lineStart: lineStart, lineEnd: lineEnd)
+            }
+
+            if selectedRange.length == 0 {
+                if let info = getLineContentRange(selectedRange) {
+                    linesToProcess.append(info)
+                }
+            } else {
+                var currentPos = selectedRange.location
+                let endPos = selectedRange.upperBound
+                while currentPos < endPos {
+                    let lineRange = nsText.lineRange(for: NSRange(location: currentPos, length: 0))
+                    if let info = getLineContentRange(NSRange(location: currentPos, length: 0)) {
+                        if !linesToProcess.contains(where: { $0.lineStart == info.lineStart }) {
+                            linesToProcess.append(info)
+                        }
+                    }
+                    currentPos = lineRange.upperBound
+                    if lineRange.length == 0 { break }
+                }
+            }
+            
+            // Process each line individually by inserting/removing comment at line start
+            var offsetAdjustment = 0
+            
+            for lineInfo in linesToProcess {
+                let adjustedStart = lineInfo.lineStart + offsetAdjustment
+                let adjustedEnd = lineInfo.lineEnd + offsetAdjustment
+                
+                // Get the line content (excluding newline)
+                let lineRange = NSRange(location: adjustedStart, length: adjustedEnd - adjustedStart)
+                let lineText = nsText.substring(with: lineRange)
+                
+                // Skip empty lines
+                if lineText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    continue
+                }
+                
+                // Find the position after leading whitespace
+                let leadingWhitespace = String(lineText.prefix(while: { $0.isWhitespace && $0 != "\n" && $0 != "\r" }))
+                let insertPosition = adjustedStart + leadingWhitespace.count
+                
+                // Check if line is already commented
+                let contentAfterWhitespace = String(lineText.dropFirst(leadingWhitespace.count))
+                let isCommented = contentAfterWhitespace.hasPrefix(commentPrefix.trimmingCharacters(in: .whitespaces))
+                
+                if isCommented {
+                    // Remove comment - find and remove the comment prefix
+                    let prefixToRemove = commentPrefix.trimmingCharacters(in: .whitespaces)
+                    if contentAfterWhitespace.range(of: prefixToRemove) != nil {
+                        let removeStart = insertPosition
+                        var removeLength = prefixToRemove.count
+                        
+                        // Also remove the space after # if it exists
+                        let afterPrefix = String(contentAfterWhitespace.dropFirst(prefixToRemove.count))
+                        if afterPrefix.hasPrefix(" ") {
+                            removeLength += 1
+                        }
+                        
+                        let removeRange = NSRange(location: removeStart, length: removeLength)
+                        textView.replaceCharacters(in: removeRange, with: "")
+                        offsetAdjustment -= removeLength
+                    }
+                } else {
+                    // Add comment - insert comment prefix at the position after whitespace
+                    textView.replaceCharacters(in: NSRange(location: insertPosition, length: 0), with: commentPrefix)
+                    offsetAdjustment += commentPrefix.count
+                }
+            }
+            
+            // Update parent text immediately
+            parent.text = textView.string
+            
+            // Set the textChanged flag to trigger SwiftUI update
+            self.textChanged = true
+            
+            // Update highlighting for all processed lines
+            if let firstLine = linesToProcess.first, let lastLine = linesToProcess.last {
+                let highlightStart = firstLine.lineStart + (offsetAdjustment < 0 ? offsetAdjustment : 0)
+                let highlightEnd = lastLine.lineEnd + offsetAdjustment
+                let highlightRange = NSRange(location: highlightStart, length: max(0, highlightEnd - highlightStart))
+                updateHighlightingForRange(highlightRange)
+            }
+        }
+        
+        private func updateHighlightingForRange(_ range: NSRange) {
+            guard let textView = textView,
+                  let textStorage = textView.textStorage else { return }
+            
+            // Validate and clamp the range to text storage bounds
+            let textLength = textStorage.length
+            guard textLength > 0 else { return }
+            
+            let safeRange = NSRange(
+                location: max(0, min(range.location, textLength - 1)),
+                length: min(range.length, textLength - max(0, min(range.location, textLength - 1)))
+            )
+            
+            // Skip if the safe range is invalid
+            guard safeRange.length > 0 && safeRange.location < textLength else { return }
+            
+            let theme = parent.colorScheme == .dark ? CodeEditorView.Theme.dark : CodeEditorView.Theme.light
+            let selectedRange = textView.selectedRange()
+
+            textStorage.beginEditing()
+
+            // Reset attributes for the specific range only
+            textStorage.setAttributes([
+                .foregroundColor: theme.normalText,
+                .font: NSFont.monospacedSystemFont(ofSize: 14 * parent.zoomLevel, weight: .regular)
+            ], range: safeRange)
+
+            // Get comment ranges within the specific range
+            let commentRanges = parent.getCommentRanges(for: parent.fileExtension, in: textStorage.string, fullRange: safeRange)
+            
+            // Apply highlighting patterns only to the specific range
+            let patterns = parent.getHighlightPatterns(for: parent.fileExtension, theme: theme)
+            
+            for (pattern, color) in patterns {
+                if pattern.contains("#.*") || pattern.contains(";.*") {
+                    // Apply comment highlighting without exclusion
+                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange)
+                } else {
+                    // Apply other patterns excluding comment ranges
+                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange, excludeRanges: commentRanges)
+                }
+            }
+
+            // Apply search highlighting if needed
+            if !parent.search.isEmpty {
+                let pattern = NSRegularExpression.escapedPattern(for: parent.search)
+                parent.highlightPattern(textStorage, pattern, color: theme.searchHighlight, isBackground: true, range: safeRange)
+            }
+
+            textStorage.endEditing()
+            
+            // Restore selection
+            textView.setSelectedRange(selectedRange)
+        }
+
+
+        
+        private func getCommentPrefix(for fileExtension: String) -> String {
+            let ext = fileExtension.lowercased()
+            switch ext {
+            case "sh", "zsh", "bash", ".zshrc", ".bashrc", ".profile", "yml", "yaml", "py":
+                return "# "
+            case "ini", "git", "conf":
+                return "# "
+            case "js", "ts", "c", "cpp", "java":
+                return "// "
+            case "swift":
+                return "// "
+            default:
+                return "# "
+            }
+        }
+        
+
+
+        
+        private func commentLine(_ line: String, commentPrefix: String) -> String {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                return line
+            }
+            
+            // Find leading whitespace
+            let leadingWhitespace = String(line.prefix(while: { $0.isWhitespace && $0 != "\n" && $0 != "\r" }))
+            let content = String(line.dropFirst(leadingWhitespace.count))
+            
+            return leadingWhitespace + commentPrefix + content.trimmingCharacters(in: .newlines)
+        }
+        
+        private func uncommentLine(_ line: String, commentPrefix: String) -> String {
+            let trimmedPrefix = commentPrefix.trimmingCharacters(in: .whitespaces)
+            
+            // Find the comment prefix in the line
+            if let range = line.range(of: trimmedPrefix) {
+                let beforeComment = String(line[..<range.lowerBound])
+                var afterComment = String(line[range.upperBound...])
+                
+                // Remove one space after comment prefix if it exists
+                if afterComment.hasPrefix(" ") {
+                    afterComment = String(afterComment.dropFirst())
+                }
+                
+                return beforeComment + afterComment
+            }
+            
+            return line
         }
     }
 
@@ -402,5 +636,44 @@ struct CodeEditorView: NSViewRepresentable {
             matchCount.wrappedValue = 0
             currentMatchIndex.wrappedValue = 0
         }
+        
+        func clearSelection() {
+            guard let tv = textView else { return }
+            tv.setSelectedRange(NSRange(location: 0, length: 0))
+            tv.scrollRangeToVisible(NSRange(location: 0, length: 0))
+        }
+    }
+}
+
+// MARK: - NSString Extensions for Line Handling
+extension NSString {
+    func lineNumber(at location: Int) -> Int {
+        let safeLocation = min(location, self.length)
+        var lineNumber = 0
+        
+        self.enumerateSubstrings(in: NSRange(location: 0, length: safeLocation), 
+                                options: [.byLines, .substringNotRequired]) { _, range, _, _ in
+            if range.location + range.length <= safeLocation {
+                lineNumber += 1
+            }
+        }
+        
+        return max(0, lineNumber - 1)
+    }
+    
+    func lineRange(for lineNumber: Int) -> NSRange {
+        var currentLine = 0
+        var result = NSRange(location: 0, length: 0)
+        
+        self.enumerateSubstrings(in: NSRange(location: 0, length: self.length), 
+                                options: [.byLines]) { _, range, _, stop in
+            if currentLine == lineNumber {
+                result = range
+                stop.pointee = true
+            }
+            currentLine += 1
+        }
+        
+        return result
     }
 }

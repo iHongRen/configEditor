@@ -49,6 +49,7 @@ struct ConfigsApp: App {
                     let shortcuts = """
                     Cmd + F: Show/Hide Search Bar
                     Cmd + S: Save File
+                    Cmd + /: Toggle Comment/Uncomment Lines
                     Cmd + = / Cmd + +: Zoom In
                     Cmd + -: Zoom Out
                     Cmd + 0: Reset Zoom
