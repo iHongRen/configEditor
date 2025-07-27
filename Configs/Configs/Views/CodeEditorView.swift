@@ -170,9 +170,18 @@ struct CodeEditorView: NSViewRepresentable {
 
         textView.backgroundColor = theme.background
 
+        // Get comment ranges first to exclude them from other highlighting
+        let commentRanges = getCommentRanges(for: fileExtension, in: textStorage.string, fullRange: fullRange)
+        
         let patterns = getHighlightPatterns(for: fileExtension, theme: theme)
         for (pattern, color) in patterns {
-            highlightPattern(textStorage, pattern, color: color, range: fullRange)
+            if pattern.contains("#.*") || pattern.contains(";.*") {
+                // Apply comment highlighting without exclusion
+                highlightPattern(textStorage, pattern, color: color, range: fullRange)
+            } else {
+                // Apply other patterns excluding comment ranges
+                highlightPattern(textStorage, pattern, color: color, range: fullRange, excludeRanges: commentRanges)
+            }
         }
 
         if !search.isEmpty {
@@ -234,7 +243,39 @@ struct CodeEditorView: NSViewRepresentable {
         return patterns
     }
 
-    private func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange) {
+    private func getCommentRanges(for fileExtension: String, in text: String, fullRange: NSRange) -> [NSRange] {
+        let ext = fileExtension.lowercased()
+        var commentPatterns: [String] = []
+        
+        switch ext {
+        case "sh", "zsh", "bash", ".zshrc", ".bashrc", ".profile":
+            commentPatterns = ["#.*"]
+        case "ini", "git", "conf":
+            commentPatterns = ["^#.*", "^;.*"]
+        case "yml", "yaml":
+            commentPatterns = ["#.*"]
+        default:
+            return []
+        }
+        
+        var commentRanges: [NSRange] = []
+        
+        for pattern in commentPatterns {
+            do {
+                let regex = try NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines])
+                regex.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
+                    guard let match = match else { return }
+                    commentRanges.append(match.range)
+                }
+            } catch {
+                print("Regex error for comment pattern \\'(pattern)\\': \\(error.localizedDescription)")
+            }
+        }
+        
+        return commentRanges
+    }
+    
+    private func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = []) {
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: .caseInsensitive)
             regex.enumerateMatches(in: textStorage.string, options: [], range: range) { match, _, _ in
@@ -242,8 +283,15 @@ struct CodeEditorView: NSViewRepresentable {
                 
                 let highlightRange = (match.numberOfRanges > 1) ? match.range(at: 1) : match.range
                 
-                let attribute: [NSAttributedString.Key: Any] = isBackground ? [.backgroundColor: color] : [.foregroundColor: color]
-                textStorage.addAttributes(attribute, range: highlightRange)
+                // Check if this range overlaps with any comment range
+                let shouldExclude = excludeRanges.contains { commentRange in
+                    NSIntersectionRange(highlightRange, commentRange).length > 0
+                }
+                
+                if !shouldExclude {
+                    let attribute: [NSAttributedString.Key: Any] = isBackground ? [.backgroundColor: color] : [.foregroundColor: color]
+                    textStorage.addAttributes(attribute, range: highlightRange)
+                }
             }
         } catch {
             print("Regex error for pattern \\'(pattern)\\': \\(error.localizedDescription)")
