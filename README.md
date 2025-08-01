@@ -32,6 +32,7 @@ It automatically scans for common configuration files across various programming
 *   **Keyboard Shortcuts**:
     *   `Cmd + F`: Show/Hide Search Bar in the editor.
     *   `Cmd + S`: Save File.
+    *   `Cmd + /`: Toggle comment on selected lines.
     *   `Cmd + =` / `Cmd + +`: Zoom In.
     *   `Cmd + -`: Zoom Out.
     *   `Cmd + 0`: Reset Zoom.
