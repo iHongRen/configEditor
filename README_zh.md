@@ -8,6 +8,9 @@ Configs 是一款 **macOS** **应用程序**，旨在帮助您轻松管理和编
 
 ![](./screenshots/light.png)
 
+
+![](./screenshots/dark.png)
+
 ## 功能
 
 - **自动发现**：扫描您的主目录以查找常见的配置文件（例如，`.zshrc`、`.gitconfig`、`.vimrc`、`.npmrc` 等）。

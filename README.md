@@ -11,6 +11,9 @@ It automatically scans for common configuration files across various programming
 
 ![](./screenshots/light.png)
 
+![](./screenshots/dark.png)
+
+
 ## Features
 
 * **Automatic Discovery**: Scans your home directory for common configuration files (e.g., `.zshrc`, `.gitconfig`, `.vimrc`, `.npmrc`, etc.).
