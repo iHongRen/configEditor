@@ -101,6 +101,9 @@ struct CodeEditorView: NSViewRepresentable {
         textView.allowsUndo = true
         textView.autoresizingMask = [.width, .height]
         
+        // Ensure undo manager is properly configured
+        // NSTextView automatically creates an undo manager, so we don't need to set it manually
+        
         // Disable smart quotes and other automatic substitutions for a better code editing experience
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
@@ -157,8 +160,13 @@ struct CodeEditorView: NSViewRepresentable {
             needsHighlight = true
         }
         
-        if context.coordinator.textChanged {
+        // Only apply highlighting if textChanged is true and it's not from a save operation
+        if context.coordinator.textChanged && !context.coordinator.isFromSave {
             needsHighlight = true
+            context.coordinator.textChanged = false
+        } else if context.coordinator.isFromSave {
+            // Reset the save flag without triggering highlighting
+            context.coordinator.isFromSave = false
             context.coordinator.textChanged = false
         }
 
@@ -177,6 +185,9 @@ struct CodeEditorView: NSViewRepresentable {
         let visibleRect = textView.visibleRect
         let currentHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
 
+        // Disable undo registration during highlighting to preserve undo stack
+        textView.undoManager?.disableUndoRegistration()
+        
         textStorage.beginEditing()
 
         textStorage.setAttributes([
@@ -206,6 +217,9 @@ struct CodeEditorView: NSViewRepresentable {
         }
 
         textStorage.endEditing()
+        
+        // Re-enable undo registration after highlighting
+        textView.undoManager?.enableUndoRegistration()
 
         let newHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
         
@@ -321,127 +335,76 @@ struct CodeEditorView: NSViewRepresentable {
         var lastColorScheme: ColorScheme?
         var lastSearch: String = ""
         var textChanged: Bool = false
+        var isFromSave: Bool = false
+        private var isTogglingComment = false
 
         init(_ parent: CodeEditorView) {
             self.parent = parent
         }
         
         func textDidChange(_ notification: Notification) {
+            if isTogglingComment { return }
             guard let textView = notification.object as? NSTextView else { return }
             self.parent.text = textView.string
             self.textChanged = true
+            self.isFromSave = false // Reset save flag on user input
             // Ensure the cursor is visible after text changes
             textView.scrollRangeToVisible(textView.selectedRange())
         }
         
         func toggleComment() {
-            guard let textView = textView else { return }
-            
+            guard let textView = textView, textView.isEditable, let undoManager = textView.undoManager else { return }
+
+            isTogglingComment = true
+            defer { isTogglingComment = false }
+
             let selectedRange = textView.selectedRange()
-            let fullText = textView.string
-            let nsText = fullText as NSString
-            
-            // Get comment prefix for current file type
-            let commentPrefix = getCommentPrefix(for: parent.fileExtension)
-            
-            // Find all lines that intersect with the selection
-            var linesToProcess: [(lineStart: Int, lineEnd: Int)] = []
+            let fullText = textView.string as NSString
 
-            let getLineContentRange = { (range: NSRange) -> (lineStart: Int, lineEnd: Int)? in
-                let lineRange = nsText.lineRange(for: range)
-                guard lineRange.length > 0 else { return nil }
-                let lineStart = lineRange.location
-                let lineText = nsText.substring(with: lineRange)
-                var contentLength = lineRange.length
-                if lineText.hasSuffix("\r\n") {
-                    contentLength -= 2
-                } else if lineText.hasSuffix("\n") {
-                    contentLength -= 1
-                }
-                let lineEnd = lineStart + contentLength
-                return (lineStart: lineStart, lineEnd: lineEnd)
-            }
-
-            if selectedRange.length == 0 {
-                if let info = getLineContentRange(selectedRange) {
-                    linesToProcess.append(info)
+            // Determine the line ranges to be commented or uncommented
+            var lineRanges: [NSRange] = []
+            if selectedRange.length > 0 {
+                let lines = fullText.substring(with: selectedRange)
+                var currentPos = selectedRange.location
+                for _ in lines.components(separatedBy: .newlines) {
+                    let lineRange = fullText.lineRange(for: NSRange(location: currentPos, length: 0))
+                    lineRanges.append(lineRange)
+                    currentPos = lineRange.upperBound
+                    if currentPos >= selectedRange.upperBound { break }
                 }
             } else {
-                var currentPos = selectedRange.location
-                let endPos = selectedRange.upperBound
-                while currentPos < endPos {
-                    let lineRange = nsText.lineRange(for: NSRange(location: currentPos, length: 0))
-                    if let info = getLineContentRange(NSRange(location: currentPos, length: 0)) {
-                        if !linesToProcess.contains(where: { $0.lineStart == info.lineStart }) {
-                            linesToProcess.append(info)
-                        }
-                    }
-                    currentPos = lineRange.upperBound
-                    if lineRange.length == 0 { break }
-                }
+                lineRanges.append(fullText.lineRange(for: selectedRange))
             }
-            
-            // Process each line individually by inserting/removing comment at line start
-            var offsetAdjustment = 0
-            
-            for lineInfo in linesToProcess {
-                let adjustedStart = lineInfo.lineStart + offsetAdjustment
-                let adjustedEnd = lineInfo.lineEnd + offsetAdjustment
-                
-                // Get the line content (excluding newline)
-                let lineRange = NSRange(location: adjustedStart, length: adjustedEnd - adjustedStart)
-                let lineText = nsText.substring(with: lineRange)
-                
-                // Skip empty lines
-                if lineText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    continue
-                }
-                
-                // Find the position after leading whitespace
-                let leadingWhitespace = String(lineText.prefix(while: { $0.isWhitespace && $0 != "\n" && $0 != "\r" }))
-                let insertPosition = adjustedStart + leadingWhitespace.count
-                
-                // Check if line is already commented
-                let contentAfterWhitespace = String(lineText.dropFirst(leadingWhitespace.count))
-                let isCommented = contentAfterWhitespace.hasPrefix(commentPrefix.trimmingCharacters(in: .whitespaces))
-                
-                if isCommented {
-                    // Remove comment - find and remove the comment prefix
-                    let prefixToRemove = commentPrefix.trimmingCharacters(in: .whitespaces)
-                    if contentAfterWhitespace.range(of: prefixToRemove) != nil {
-                        let removeStart = insertPosition
-                        var removeLength = prefixToRemove.count
-                        
-                        // Also remove the space after # if it exists
-                        let afterPrefix = String(contentAfterWhitespace.dropFirst(prefixToRemove.count))
-                        if afterPrefix.hasPrefix(" ") {
-                            removeLength += 1
+
+            let commentPrefix = getCommentPrefix(for: parent.fileExtension)
+
+            // Determine if we are commenting or uncommenting
+            let isUncommenting = lineRanges.allSatisfy { range in
+                let line = fullText.substring(with: range)
+                return line.trimmingCharacters(in: .whitespaces).hasPrefix(commentPrefix)
+            }
+
+            undoManager.beginUndoGrouping()
+            for range in lineRanges.reversed() { // Process from bottom to top to keep ranges valid
+                let line = fullText.substring(with: range)
+                if isUncommenting {
+                    if let prefixRange = line.range(of: commentPrefix) {
+                        let removalRange = NSRange(location: range.location + (prefixRange.lowerBound.utf16Offset(in: line)), length: commentPrefix.count)
+                        if textView.shouldChangeText(in: removalRange, replacementString: "") {
+                            textView.replaceCharacters(in: removalRange, with: "")
                         }
-                        
-                        let removeRange = NSRange(location: removeStart, length: removeLength)
-                        textView.replaceCharacters(in: removeRange, with: "")
-                        offsetAdjustment -= removeLength
                     }
                 } else {
-                    // Add comment - insert comment prefix at the position after whitespace
-                    textView.replaceCharacters(in: NSRange(location: insertPosition, length: 0), with: commentPrefix)
-                    offsetAdjustment += commentPrefix.count
+                    if textView.shouldChangeText(in: NSRange(location: range.location, length: 0), replacementString: commentPrefix) {
+                        textView.replaceCharacters(in: NSRange(location: range.location, length: 0), with: commentPrefix)
+                    }
                 }
             }
-            
-            // Update parent text immediately
-            parent.text = textView.string
-            
-            // Set the textChanged flag to trigger SwiftUI update
+            undoManager.endUndoGrouping()
+
+            // Manually trigger update
+            self.parent.text = textView.string
             self.textChanged = true
-            
-            // Update highlighting for all processed lines
-            if let firstLine = linesToProcess.first, let lastLine = linesToProcess.last {
-                let highlightStart = firstLine.lineStart + (offsetAdjustment < 0 ? offsetAdjustment : 0)
-                let highlightEnd = lastLine.lineEnd + offsetAdjustment
-                let highlightRange = NSRange(location: highlightStart, length: max(0, highlightEnd - highlightStart))
-                updateHighlightingForRange(highlightRange)
-            }
         }
         
         private func updateHighlightingForRange(_ range: NSRange) {
@@ -462,6 +425,9 @@ struct CodeEditorView: NSViewRepresentable {
             
             let theme = parent.colorScheme == .dark ? CodeEditorView.Theme.dark : CodeEditorView.Theme.light
             let selectedRange = textView.selectedRange()
+
+            // Disable undo registration during highlighting to preserve undo stack
+            textView.undoManager?.disableUndoRegistration()
 
             textStorage.beginEditing()
 
@@ -494,6 +460,9 @@ struct CodeEditorView: NSViewRepresentable {
             }
 
             textStorage.endEditing()
+            
+            // Re-enable undo registration after highlighting
+            textView.undoManager?.enableUndoRegistration()
             
             // Restore selection
             textView.setSelectedRange(selectedRange)

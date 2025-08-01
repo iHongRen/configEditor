@@ -34,6 +34,10 @@ struct KeyboardShortcutHandler: ViewModifier {
                         }
                         if event.charactersIgnoringModifiers == "s" {
                             if let file = selectedFile {
+                                // Mark that this text change is from save operation
+                                if let editorRef = editorViewRef, let coordinator = editorRef.coordinator {
+                                    coordinator.isFromSave = true
+                                }
                                 FileOperations.saveFileContent(file: file, content: fileContent) { modDate in
                                     fileModificationDate = modDate
                                 }
