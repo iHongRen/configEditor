@@ -21,6 +21,7 @@ struct DetailContentView: View {
     @Binding var fileSize: Int64
     @Binding var fileModificationDate: Date?
     @Binding var colorSchemeOption: ColorSchemeOption
+    @State private var showingHistory = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,15 +73,23 @@ struct DetailContentView: View {
                 .padding(.all, 5 * globalZoomLevel)
             }
            
-            CodeEditorView(text: $fileContent, 
-                       fileExtension: LanguageDetector.detectLanguage(selectedFile?.name), 
-                       search: $editorSearchText, 
+            CodeEditorView(text: $fileContent,
+                       fileExtension: LanguageDetector.detectLanguage(selectedFile?.name),
+                       search: $editorSearchText,
                        ref: $editorViewRef,
                        isFocused: !searchFieldFocused,
-                       showSearchBar: { 
+                       showSearchBar: {
                            showEditorSearchBar = true
                            DispatchQueue.main.async {
                                searchFieldFocused = true
+                           }
+                       },
+                       onSave: {
+                           if let file = selectedFile {
+                               FileOperations.saveFileContent(file: file, content: fileContent) { newDate in
+                                   self.fileModificationDate = newDate
+                               }
+                               VersionManager.shared.commit(content: fileContent, for: file.path)
                            }
                        },
                        zoomLevel: globalZoomLevel,
@@ -110,7 +119,23 @@ struct DetailContentView: View {
             .frame(height: 24 * globalZoomLevel)
         }
         .frame(minWidth: 400 * globalZoomLevel)
+        .sheet(isPresented: $showingHistory) {
+            if let file = selectedFile {
+                HistoryView(configPath: file.path, onRestore: { restoredContent in
+                    self.fileContent = restoredContent
+                })
+            }
+        }
         .toolbar {
+            Button(action: {
+                if selectedFile != nil {
+                    showingHistory = true
+                }
+            }) {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .help("Show version history")
+
             Menu {
                 Picker("Appearance", selection: $colorSchemeOption) {
                     ForEach(ColorSchemeOption.allCases, id: \.self) {

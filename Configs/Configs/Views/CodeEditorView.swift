@@ -19,6 +19,12 @@ class CustomTextView: NSTextView {
             return
         }
         
+        // Handle Cmd+S for save - let it pass through to the global handler
+        if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "s" {
+            coordinator?.save()
+            return
+        }
+        
         super.keyDown(with: event)
     }
 }
@@ -350,6 +356,11 @@ struct CodeEditorView: NSViewRepresentable {
             self.isFromSave = false // Reset save flag on user input
             // Ensure the cursor is visible after text changes
             textView.scrollRangeToVisible(textView.selectedRange())
+        }
+        
+        func save() {
+            print("💾 CodeEditorView.Coordinator.save() called")
+            parent.onSave?()
         }
         
         func toggleComment() {
