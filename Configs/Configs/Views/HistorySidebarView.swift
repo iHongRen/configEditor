@@ -17,13 +17,6 @@ struct HistorySidebarView: View {
     @State private var selectedCommit: Commit?
     @State private var selectedCommitContent: String?
     @State private var selectedCommitDiff: String?
-    @State private var selectedView: ViewType = .content
-    
-    enum ViewType: String, CaseIterable, Identifiable {
-        case content = "Content"
-        case diff = "Changes"
-        var id: String { self.rawValue }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,40 +65,13 @@ struct HistorySidebarView: View {
             if let commit = selectedCommit {
                 Divider()
                 
-                // View type picker
-                Picker("View", selection: $selectedView) {
-                    ForEach(ViewType.allCases) { type in
-                        Text(type.rawValue)
-                            .font(.system(size: 12 * globalZoomLevel))
-                            .tag(type)
-                    }
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                
-                Divider()
-                
-                // Content/Diff view
+                // Changes view
                 ScrollView {
-                    if selectedView == .content {
-                        if let content = selectedCommitContent {
-                            Text(content)
-                                .font(.system(size: 11 * globalZoomLevel, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                        } else {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
+                    if let diff = selectedCommitDiff {
+                        DiffTextView(diffString: diff, fontSize: 11 * globalZoomLevel)
                     } else {
-                        if let diff = selectedCommitDiff {
-                            DiffTextView(diffString: diff, fontSize: 11 * globalZoomLevel)
-                        } else {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -116,15 +82,14 @@ struct HistorySidebarView: View {
                 HStack {
                     Spacer()
                     
-                    if selectedView == .content {
-                        Button("Restore this Version") {
-                            if let content = selectedCommitContent {
-                                onRestore(content)
-                            }
+                    Button("Restore this Version") {
+                        if let content = selectedCommitContent {
+                            onRestore(content)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .font(.system(size: 12 * globalZoomLevel))
                     }
+                    .buttonStyle(.borderedProminent)
+                    .font(.system(size: 12 * globalZoomLevel))
+                    .disabled(selectedCommitContent == nil)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
