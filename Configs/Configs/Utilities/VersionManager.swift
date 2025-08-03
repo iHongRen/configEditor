@@ -93,36 +93,28 @@ class VersionManager {
     }
 
     func commit(content: String, for configPath: String) {
-        print("🔄 VersionManager.commit called for: \(configPath)")
         let repoURL = getRepositoryURL(for: configPath)
-        print("📁 Repository URL: \(repoURL.path)")
-        
         initializeRepository(for: configPath)
 
         let fileURL = repoURL.appendingPathComponent("config")
         do {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
-            print("✅ Content written to: \(fileURL.path)")
         } catch {
-            print("❌ Failed to write content to temp file for commit: \(error)")
+            print("Failed to write content to temp file for commit: \(error)")
             return
         }
 
         let addResult = runGitCommand(args: ["add", "config"], in: repoURL)
         if addResult.status != 0 {
-            print("❌ Git add failed: \(addResult.error ?? "Unknown error")")
+            print("Git add failed: \(addResult.error ?? "Unknown error")")
             return
-        } else {
-            print("✅ Git add successful")
         }
         
         let commitMessage = "Update at \(Date().formatted(date: .numeric, time: .shortened))"
         // Allow empty commits to ensure every save creates a version
         let commitResult = runGitCommand(args: ["commit", "--allow-empty", "-m", commitMessage], in: repoURL)
         if commitResult.status != 0 {
-            print("❌ Git commit failed: \(commitResult.error ?? "Unknown error")")
-        } else {
-            print("✅ Successfully committed changes for \(configPath)")
+            print("Git commit failed: \(commitResult.error ?? "Unknown error")")
         }
     }
 

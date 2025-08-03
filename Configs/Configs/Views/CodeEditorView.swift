@@ -359,7 +359,6 @@ struct CodeEditorView: NSViewRepresentable {
         }
         
         func save() {
-            print("💾 CodeEditorView.Coordinator.save() called")
             parent.onSave?()
         }
         

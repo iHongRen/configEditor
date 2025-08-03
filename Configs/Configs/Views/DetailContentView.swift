@@ -21,7 +21,7 @@ struct DetailContentView: View {
     @Binding var fileSize: Int64
     @Binding var fileModificationDate: Date?
     @Binding var colorSchemeOption: ColorSchemeOption
-    @State private var showingHistory = false
+    @Binding var showHistorySidebar: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -119,35 +119,32 @@ struct DetailContentView: View {
             .frame(height: 24 * globalZoomLevel)
         }
         .frame(minWidth: 400 * globalZoomLevel)
-        .sheet(isPresented: $showingHistory) {
-            if let file = selectedFile {
-                HistoryView(configPath: file.path, onRestore: { restoredContent in
-                    self.fileContent = restoredContent
-                })
-            }
-        }
         .toolbar {
-            Button(action: {
-                if selectedFile != nil {
-                    showingHistory = true
-                }
-            }) {
-                Image(systemName: "clock.arrow.circlepath")
-            }
-            .help("Show version history")
-
-            Menu {
-                Picker("Appearance", selection: $colorSchemeOption) {
-                    ForEach(ColorSchemeOption.allCases, id: \.self) {
-                        option in
-                        Text(option.rawValue).tag(option)
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    if selectedFile != nil {
+                        showHistorySidebar.toggle()
                     }
+                }) {
+                    Image(systemName: showHistorySidebar ? "clock.arrow.circlepath.fill" : "clock.arrow.circlepath")
                 }
-                .pickerStyle(InlinePickerStyle())
-            } label: {
-                Image(systemName: colorSchemeOption == .dark ? "moon.fill" : "sun.max.fill")
-                    .foregroundColor(.accentColor)
-                    .help("Change appearance")
+                .help(showHistorySidebar ? "Hide version history" : "Show version history")
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("Appearance", selection: $colorSchemeOption) {
+                        ForEach(ColorSchemeOption.allCases, id: \.self) {
+                            option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(InlinePickerStyle())
+                } label: {
+                    Image(systemName: colorSchemeOption == .dark ? "moon.fill" : "sun.max.fill")
+                        .foregroundColor(.accentColor)
+                        .help("Change appearance")
+                }
             }
         }
     }

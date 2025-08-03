@@ -33,10 +33,12 @@ struct ContentView: View {
     
     @State private var contextMenuFile: ConfigFile?
     @State private var showDeleteAlert = false
+    @State private var showHistorySidebar = false
     
 
     var body: some View {
         NavigationSplitView {
+            // Left sidebar - File list
             SidebarView(
                 configManager: configManager,
                 selectedFile: $selectedFile,
@@ -49,23 +51,44 @@ struct ContentView: View {
                 fileSize: $fileSize,
                 fileModificationDate: $fileModificationDate
             )
-            .frame(minWidth: 200 * globalZoomLevel)
-            
+            .navigationSplitViewColumnWidth(min: 200 * globalZoomLevel, ideal: 250 * globalZoomLevel, max: 300 * globalZoomLevel)
         } detail: {
-            DetailContentView(
-                fileContent: $fileContent,
-                selectedFile: $selectedFile,
-                editorSearchText: $editorSearchText,
-                editorViewRef: $editorViewRef,
-                showEditorSearchBar: $showEditorSearchBar,
-                searchFieldFocused: _searchFieldFocused,
-                globalZoomLevel: $globalZoomLevel,
-                editorMatchCount: $editorMatchCount,
-                editorCurrentMatchIndex: $editorCurrentMatchIndex,
-                fileSize: $fileSize,
-                fileModificationDate: $fileModificationDate,
-                colorSchemeOption: $colorSchemeOption
-            )
+            // Main content area with optional right sidebar
+            HStack(spacing: 0) {
+                DetailContentView(
+                    fileContent: $fileContent,
+                    selectedFile: $selectedFile,
+                    editorSearchText: $editorSearchText,
+                    editorViewRef: $editorViewRef,
+                    showEditorSearchBar: $showEditorSearchBar,
+                    searchFieldFocused: _searchFieldFocused,
+                    globalZoomLevel: $globalZoomLevel,
+                    editorMatchCount: $editorMatchCount,
+                    editorCurrentMatchIndex: $editorCurrentMatchIndex,
+                    fileSize: $fileSize,
+                    fileModificationDate: $fileModificationDate,
+                    colorSchemeOption: $colorSchemeOption,
+                    showHistorySidebar: $showHistorySidebar
+                )
+                .frame(maxWidth: .infinity)
+                
+                // Right sidebar - History (conditionally shown)
+                if showHistorySidebar {
+                    Divider()
+                    
+                    if let file = selectedFile {
+                        HistorySidebarView(
+                            configPath: file.path,
+                            showHistorySidebar: $showHistorySidebar,
+                            globalZoomLevel: globalZoomLevel,
+                            onRestore: { restoredContent in
+                                self.fileContent = restoredContent
+                            }
+                        )
+                        .frame(minWidth: 300 * globalZoomLevel, maxWidth: 400 * globalZoomLevel)
+                    }
+                }
+            }
         }
         .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
         .onAppear {

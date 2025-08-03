@@ -33,9 +33,7 @@ struct KeyboardShortcutHandler: ViewModifier {
                             return nil
                         }
                         if event.charactersIgnoringModifiers == "s" {
-                            print("⌨️ Cmd+S detected in KeyboardShortcutHandler")
                             if let file = selectedFile {
-                                print("📄 Saving file: \(file.name) at \(file.path)")
                                 // Mark that this text change is from save operation
                                 if let editorRef = editorViewRef, let coordinator = editorRef.coordinator {
                                     coordinator.isFromSave = true
@@ -44,10 +42,7 @@ struct KeyboardShortcutHandler: ViewModifier {
                                     fileModificationDate = modDate
                                 }
                                 // Create version control commit after saving
-                                print("🔄 Calling VersionManager.commit from KeyboardShortcutHandler")
                                 VersionManager.shared.commit(content: fileContent, for: file.path)
-                            } else {
-                                print("❌ No file selected for save")
                             }
                             return nil
                         }
