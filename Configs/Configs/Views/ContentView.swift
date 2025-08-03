@@ -112,6 +112,10 @@ struct ContentView: View {
                     if !configManager.configFiles.contains(where: { $0.path == path }) {
                         let newConfig = ConfigFile(name: name, path: path, isCustom: true)
                         configManager.addConfigFile(newConfig)
+                        // Close history sidebar when switching to a new file
+                        if showHistorySidebar {
+                            showHistorySidebar = false
+                        }
                         selectedFile = newConfig
                         FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
                     }
@@ -137,6 +141,11 @@ struct ContentView: View {
                 if let file = contextMenuFile {
                     configManager.deleteConfigFile(file)
                     if selectedFile?.id == file.id {
+                        // Close history sidebar when deleting the currently selected file
+                        if showHistorySidebar {
+                            showHistorySidebar = false
+                        }
+                        
                         selectedFile = configManager.configFiles.first
                         if let newSelectedFile = selectedFile {
                             FileOperations.loadAndSetFileContent(file: newSelectedFile, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
@@ -153,5 +162,11 @@ struct ContentView: View {
             Text("Are you sure you want to remove this config file from the list?")
         }
         .preferredColorScheme(colorSchemeOption.colorScheme)
+        .onChange(of: selectedFile) { oldFile, newFile in
+            // Close history sidebar when switching to a different file
+            if showHistorySidebar {
+                showHistorySidebar = false
+            }
+        }
     }
 }
