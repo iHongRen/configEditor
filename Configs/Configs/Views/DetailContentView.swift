@@ -10,6 +10,7 @@ import SwiftUI
 
 struct DetailContentView: View {
     @Binding var fileContent: String
+    @Binding var originalFileContent: String
     @Binding var selectedFile: ConfigFile?
     @Binding var editorSearchText: String
     @Binding var editorViewRef: CodeEditorView.Ref?
@@ -86,10 +87,10 @@ struct DetailContentView: View {
                        },
                        onSave: {
                            if let file = selectedFile {
-                               FileOperations.saveFileContent(file: file, content: fileContent) { newDate in
+                               FileOperations.saveFileContentWithVersioning(file: file, content: fileContent, originalContent: originalFileContent) { newDate, newContent in
                                    self.fileModificationDate = newDate
+                                   self.originalFileContent = newContent // Update original content after successful save
                                }
-                               VersionManager.shared.commit(content: fileContent, for: file.path)
                            }
                        },
                        zoomLevel: globalZoomLevel,

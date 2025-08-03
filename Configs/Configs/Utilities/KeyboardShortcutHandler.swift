@@ -15,6 +15,7 @@ struct KeyboardShortcutHandler: ViewModifier {
     @FocusState var searchFieldFocused: Bool
     @Binding var globalZoomLevel: Double
     @Binding var fileContent: String
+    @Binding var originalFileContent: String
     @Binding var selectedFile: ConfigFile?
     @Binding var fileModificationDate: Date?
 
@@ -38,11 +39,10 @@ struct KeyboardShortcutHandler: ViewModifier {
                                 if let editorRef = editorViewRef, let coordinator = editorRef.coordinator {
                                     coordinator.isFromSave = true
                                 }
-                                FileOperations.saveFileContent(file: file, content: fileContent) { modDate in
+                                FileOperations.saveFileContentWithVersioning(file: file, content: fileContent, originalContent: originalFileContent) { modDate, newContent in
                                     fileModificationDate = modDate
+                                    originalFileContent = newContent // Update original content after successful save
                                 }
-                                // Create version control commit after saving
-                                VersionManager.shared.commit(content: fileContent, for: file.path)
                             }
                             return nil
                         }
@@ -92,6 +92,7 @@ extension View {
         searchFieldFocused: FocusState<Bool>,
         globalZoomLevel: Binding<Double>,
         fileContent: Binding<String>,
+        originalFileContent: Binding<String>,
         selectedFile: Binding<ConfigFile?>,
         fileModificationDate: Binding<Date?>
     ) -> some View {
@@ -103,6 +104,7 @@ extension View {
                 searchFieldFocused: searchFieldFocused,
                 globalZoomLevel: globalZoomLevel,
                 fileContent: fileContent,
+                originalFileContent: originalFileContent,
                 selectedFile: selectedFile,
                 fileModificationDate: fileModificationDate
             )

@@ -17,6 +17,7 @@ struct SidebarView: View {
     @Binding var contextMenuFile: ConfigFile?
     @Binding var showDeleteAlert: Bool
     @Binding var fileContent: String
+    @Binding var originalFileContent: String
     @Binding var fileSize: Int64
     @Binding var fileModificationDate: Date?
     
@@ -88,7 +89,7 @@ struct SidebarView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedFile = file
-                            FileOperations.loadAndSetFileContent(file: file, fileContent: $fileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                            FileOperations.loadAndSetFileContent(file: file, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
                         }
                         .contextMenu {
                             Button(action: {
@@ -170,7 +171,7 @@ struct SidebarView: View {
                         let newConfig = ConfigFile(name: name, path: path, isCustom: true)
                         configManager.addConfigFile(newConfig)
                         selectedFile = newConfig
-                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
                     }
                 }
             default:

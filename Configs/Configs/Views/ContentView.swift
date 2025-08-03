@@ -14,6 +14,7 @@ struct ContentView: View {
     @StateObject private var configManager = ConfigManager()
     @State private var selectedFile: ConfigFile?
     @State private var fileContent: String = ""
+    @State private var originalFileContent: String = "" // Track original content for change detection
     @State private var searchText: String = ""
     @State private var showFileImporter: Bool = false
     @AppStorage("globalZoomLevel") private var globalZoomLevel: Double = 1.0 // Default 1.0
@@ -48,6 +49,7 @@ struct ContentView: View {
                 contextMenuFile: $contextMenuFile,
                 showDeleteAlert: $showDeleteAlert,
                 fileContent: $fileContent,
+                originalFileContent: $originalFileContent,
                 fileSize: $fileSize,
                 fileModificationDate: $fileModificationDate
             )
@@ -57,6 +59,7 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 DetailContentView(
                     fileContent: $fileContent,
+                    originalFileContent: $originalFileContent,
                     selectedFile: $selectedFile,
                     editorSearchText: $editorSearchText,
                     editorViewRef: $editorViewRef,
@@ -83,6 +86,7 @@ struct ContentView: View {
                             globalZoomLevel: globalZoomLevel,
                             onRestore: { restoredContent in
                                 self.fileContent = restoredContent
+                                self.originalFileContent = restoredContent // Update original content when restoring
                             }
                         )
                         .frame(minWidth: 300 * globalZoomLevel, maxWidth: 400 * globalZoomLevel)
@@ -95,7 +99,7 @@ struct ContentView: View {
             configManager.sortConfigFiles()
             if let first = configManager.configFiles.first {
                 selectedFile = first
-                FileOperations.loadAndSetFileContent(file: first, fileContent: $fileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                FileOperations.loadAndSetFileContent(file: first, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
             }
         }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
@@ -109,7 +113,7 @@ struct ContentView: View {
                         let newConfig = ConfigFile(name: name, path: path, isCustom: true)
                         configManager.addConfigFile(newConfig)
                         selectedFile = newConfig
-                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
                     }
                 }
             default:
@@ -123,6 +127,7 @@ struct ContentView: View {
             searchFieldFocused: _searchFieldFocused,
             globalZoomLevel: $globalZoomLevel,
             fileContent: $fileContent,
+            originalFileContent: $originalFileContent,
             selectedFile: $selectedFile,
             fileModificationDate: $fileModificationDate
         )
@@ -134,9 +139,10 @@ struct ContentView: View {
                     if selectedFile?.id == file.id {
                         selectedFile = configManager.configFiles.first
                         if let newSelectedFile = selectedFile {
-                            FileOperations.loadAndSetFileContent(file: newSelectedFile, fileContent: $fileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                            FileOperations.loadAndSetFileContent(file: newSelectedFile, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
                         } else {
                             fileContent = ""
+                            originalFileContent = ""
                             fileSize = 0
                             fileModificationDate = nil
                         }

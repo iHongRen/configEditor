@@ -19,7 +19,33 @@ struct FileOperations {
                 onSaveSuccess(modDate)
             }
             
-            // Check if it's a Zsh or Bash config file
+            // Check if it's a Zsh or Bash config file and auto-source it
+            if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {
+                let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
+                let sourceCommand = "source \(file.path)"
+                executeShellCommand(command: sourceCommand, shell: shell)
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Error"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
+    }
+    
+    static func saveFileContentWithVersioning(file: ConfigFile, content: String, originalContent: String, onSaveSuccess: @escaping (Date, String) -> Void) {
+        do {
+            try content.write(toFile: file.path, atomically: true, encoding: .utf8)
+            // Update modification date after saving
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            if let modDate = attributes[.modificationDate] as? Date {
+                onSaveSuccess(modDate, content) // Pass the new content as the new original
+            }
+            
+            // Version control for all config files - commit only if content has changed
+            VersionManager.shared.commitIfChanged(content: content, originalContent: originalContent, for: file.path)
+            
+            // Check if it's a Zsh or Bash config file and auto-source it
             if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {
                 let shell = file.path.hasSuffix(".zshrc") ? "zsh" : "bash"
                 let sourceCommand = "source \(file.path)"
@@ -68,7 +94,40 @@ struct FileOperations {
         }
     }
     
-  
+    static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, originalFileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
+        fileContent.wrappedValue = "Loading content..."
+        Task {
+            var content: String = ""
+            var currentFileSize: Int64 = 0
+            var currentFileModificationDate: Date? = nil
+            let url = URL(fileURLWithPath: file.path)
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+                currentFileSize = attributes[.size] as? Int64 ?? 0
+                currentFileModificationDate = attributes[.modificationDate] as? Date
+                
+                let data = try Data(contentsOf: url)
+                if let str = String(data: data, encoding: .utf8) {
+                    content = str
+                } else if let str = String(data: data, encoding: .isoLatin1) {
+                    content = str
+                } else if let str = String(data: data, encoding: .ascii) {
+                    content = str
+                } else {
+                    content = "Unable to read content with common encodings. File may be binary or in a special format."
+                }
+            } catch {
+                content = "Failed to read file content: \(error.localizedDescription)"
+            }
+            await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
+                fileContent.wrappedValue = content
+                originalFileContent.wrappedValue = content // Set original content for change detection
+                fileSize.wrappedValue = currentFileSize
+                fileModificationDate.wrappedValue = currentFileModificationDate
+            }
+        }
+    }
+    
     static func executeShellCommand(command: String, shell: String) {
         let process = Process()
         process.launchPath = "/bin/sh"
@@ -84,12 +143,15 @@ struct FileOperations {
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
-                print(output)
+                print("Shell command output: \(output)")
             }
         } catch {
-            print("Failed to execute command: \(error)")
+            print("Failed to execute shell command: \(error)")
         }
     }
+    
+  
+
 
 
     static func copyPathToClipboard(_ path: String) {
