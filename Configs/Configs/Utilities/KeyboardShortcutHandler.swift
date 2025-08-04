@@ -39,10 +39,20 @@ struct KeyboardShortcutHandler: ViewModifier {
                                 if let editorRef = editorViewRef, let coordinator = editorRef.coordinator {
                                     coordinator.isFromSave = true
                                 }
-                                FileOperations.saveFileContentWithVersioning(file: file, content: fileContent, originalContent: originalFileContent) { modDate, newContent in
-                                    fileModificationDate = modDate
-                                    originalFileContent = newContent // Update original content after successful save
-                                }
+                                
+                                // Get cursor line content
+                                let cursorLine = editorViewRef?.coordinator?.getCurrentLineContent()
+                                
+                                FileOperations.saveFileContentWithVersioning(
+                                    file: file, 
+                                    content: fileContent, 
+                                    originalContent: originalFileContent, 
+                                    cursorLine: cursorLine,
+                                    onSaveSuccess: { modDate, newContent in
+                                        fileModificationDate = modDate
+                                        originalFileContent = newContent // Update original content after successful save
+                                    }
+                                )
                             }
                             return nil
                         }

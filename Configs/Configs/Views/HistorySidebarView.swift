@@ -77,16 +77,16 @@ struct HistorySidebarView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 32 * globalZoomLevel, height: 32 * globalZoomLevel)
+                    .frame(width: 28 * globalZoomLevel, height: 28 * globalZoomLevel)
                 
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
+                Image(systemName: "clock")
+                    .font(.system(size: 12 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.white)
             }
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("Version History")
-                    .font(.system(size: 16 * globalZoomLevel, weight: .semibold))
+                    .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
                 
                 Text("\(commits.count) commits available")
@@ -112,8 +112,8 @@ struct HistorySidebarView: View {
             .buttonStyle(PlainButtonStyle())
             .help("Close history")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
         .background(
             Rectangle()
                 .fill(Color(NSColor.windowBackgroundColor).opacity(0.9))
@@ -147,7 +147,7 @@ struct HistorySidebarView: View {
                             .fill(Color.secondary.opacity(0.3))
                             .frame(width: 60 * globalZoomLevel, height: 60 * globalZoomLevel)
                         
-                        Image(systemName: "clock.arrow.circlepath")
+                        Image(systemName: "clock")
                             .font(.system(size: 24 * globalZoomLevel, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -328,10 +328,10 @@ struct HistorySidebarView: View {
                             ZStack {
                                 Circle()
                                     .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 24 * globalZoomLevel, height: 24 * globalZoomLevel)
+                                    .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
                                 
                                 Image(systemName: "doc.text")
-                                    .font(.system(size: 11 * globalZoomLevel, weight: .medium))
+                                    .font(.system(size: 12 * globalZoomLevel, weight: .medium))
                                     .foregroundColor(Color.accentColor)
                             }
                         }
@@ -348,44 +348,26 @@ struct HistorySidebarView: View {
                         }
                         
                         Text("Changes")
-                            .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
+                            .font(.system(size: 13 * globalZoomLevel, weight: .semibold))
                             .foregroundColor(.primary)
                     }
                     
                     Spacer()
                     
                     HStack(spacing: 12) {
-                        if let commit = selectedCommit {
-                            HStack(spacing: 6) {   
-                                Text(commit.hash.prefix(7))
-                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(Color.accentColor)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.accentColor.opacity(0.1))
-                                            .overlay(
-                                                Capsule()
-                                                    .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
-                            }
-                        }
-                        
                         // Restore button
                         Button(action: {
                             showRestoreConfirmation = true
                         }) {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 5) {
                                 Image(systemName: "arrow.counterclockwise")
                                     .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
                                 Text("Restore")
                                     .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(
@@ -412,9 +394,8 @@ struct HistorySidebarView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 12)
             }
-            .frame(height: 48 * globalZoomLevel)
+            .frame(height: 36 * globalZoomLevel)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
             .overlay(
                 Rectangle()

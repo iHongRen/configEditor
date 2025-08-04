@@ -85,12 +85,19 @@ struct DetailContentView: View {
                                searchFieldFocused = true
                            }
                        },
-                       onSave: {
+
+                       onSaveWithCursorLine: { cursorLine in
                            if let file = selectedFile {
-                               FileOperations.saveFileContentWithVersioning(file: file, content: fileContent, originalContent: originalFileContent) { newDate, newContent in
-                                   self.fileModificationDate = newDate
-                                   self.originalFileContent = newContent // Update original content after successful save
-                               }
+                               FileOperations.saveFileContentWithVersioning(
+                                   file: file, 
+                                   content: fileContent, 
+                                   originalContent: originalFileContent, 
+                                   cursorLine: cursorLine,
+                                   onSaveSuccess: { newDate, newContent in
+                                       self.fileModificationDate = newDate
+                                       self.originalFileContent = newContent // Update original content after successful save
+                                   }
+                               )
                            }
                        },
                        zoomLevel: globalZoomLevel,
@@ -127,7 +134,7 @@ struct DetailContentView: View {
                         showHistorySidebar.toggle()
                     }
                 }) {
-                    Image(systemName: showHistorySidebar ? "clock.arrow.circlepath.fill" : "clock.arrow.circlepath")
+                    Image(systemName: showHistorySidebar ? "clock.fill" : "clock")
                 }
                 .help(showHistorySidebar ? "Hide version history" : "Show version history")
             }

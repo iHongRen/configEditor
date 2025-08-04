@@ -33,7 +33,7 @@ struct FileOperations {
         }
     }
     
-    static func saveFileContentWithVersioning(file: ConfigFile, content: String, originalContent: String, onSaveSuccess: @escaping (Date, String) -> Void) {
+    static func saveFileContentWithVersioning(file: ConfigFile, content: String, originalContent: String, cursorLine: String? = nil, onSaveSuccess: @escaping (Date, String) -> Void) {
         do {
             try content.write(toFile: file.path, atomically: true, encoding: .utf8)
             // Update modification date after saving
@@ -43,7 +43,7 @@ struct FileOperations {
             }
             
             // Version control for all config files - commit only if content has changed
-            VersionManager.shared.commitIfChanged(content: content, originalContent: originalContent, for: file.path)
+            VersionManager.shared.commitIfChanged(content: content, originalContent: originalContent, for: file.path, cursorLine: cursorLine)
             
             // Check if it's a Zsh or Bash config file and auto-source it
             if file.path.hasSuffix(".zshrc") || file.path.hasSuffix(".bashrc") || file.path.hasSuffix(".bash_profile") {

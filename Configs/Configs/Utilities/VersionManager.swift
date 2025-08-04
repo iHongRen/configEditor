@@ -123,7 +123,7 @@ class VersionManager {
         }
     }
     
-    func commitIfChanged(content: String, originalContent: String, for configPath: String) {
+    func commitIfChanged(content: String, originalContent: String, for configPath: String, cursorLine: String? = nil) {
         // Only commit if content has actually changed
         guard content != originalContent else {
             print("No changes detected, skipping commit for \(configPath)")
@@ -148,7 +148,21 @@ class VersionManager {
             return
         }
         
-        let commitMessage = "Update at \(Date().formatted(date: .numeric, time: .shortened))"
+        // Generate commit message based on cursor line or fallback to date
+        let commitMessage: String
+        if let cursorLine = cursorLine, !cursorLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Use the cursor line as commit message, truncate if too long
+            let trimmedLine = cursorLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            commitMessage = String(trimmedLine.prefix(100)) // Limit to 100 characters
+            print("DEBUG: Using cursor line as commit message: '\(commitMessage)'")
+        } else {
+            // Fallback to date with seconds precision
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM/dd HH:mm:ss"
+            commitMessage = "Update at \(formatter.string(from: Date()))"
+            print("DEBUG: Using date as commit message (cursor line was: '\(cursorLine ?? "nil")')")
+        }
+        
         let commitResult = runGitCommand(args: ["commit", "-m", commitMessage], in: repoURL)
         if commitResult.status != 0 {
             print("Git commit failed: \(commitResult.error ?? "Unknown error")")
@@ -163,7 +177,7 @@ class VersionManager {
             return []
         }
 
-        let logResult = runGitCommand(args: ["log", "--pretty=format:%H,%ad,%s", "--date=short"], in: repoURL)
+        let logResult = runGitCommand(args: ["log", "--pretty=format:%H,%ad,%s", "--date=format:%Y/%m/%d %H:%M:%S"], in: repoURL)
         
         if logResult.status != 0 {
             print("Git log failed: \(logResult.error ?? "Unknown error")")

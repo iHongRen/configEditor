@@ -37,6 +37,7 @@ struct CodeEditorView: NSViewRepresentable {
     var isFocused: Bool
     var showSearchBar: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
+    var onSaveWithCursorLine: ((String?) -> Void)? = nil
     var zoomLevel: Double
     @Binding var matchCount: Int
     @Binding var currentMatchIndex: Int
@@ -359,7 +360,29 @@ struct CodeEditorView: NSViewRepresentable {
         }
         
         func save() {
-            parent.onSave?()
+            let cursorLine = getCurrentLineContent()
+            if let onSaveWithCursorLine = parent.onSaveWithCursorLine {
+                onSaveWithCursorLine(cursorLine)
+            } else {
+                parent.onSave?()
+            }
+        }
+        
+        func getCurrentLineContent() -> String? {
+            guard let textView = textView else { 
+                print("DEBUG: textView is nil")
+                return nil 
+            }
+            let selectedRange = textView.selectedRange()
+            let text = textView.string as NSString
+            
+            // Use NSString's lineRange method to get the full line range
+            let lineRange = text.lineRange(for: NSRange(location: selectedRange.location, length: 0))
+            let lineContent = text.substring(with: lineRange)
+            let trimmedContent = lineContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            print("DEBUG: Cursor at range \(selectedRange), line range \(lineRange), line content: '\(trimmedContent)'")
+            return trimmedContent.isEmpty ? nil : trimmedContent
         }
         
         func toggleComment() {
