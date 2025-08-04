@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct HistorySidebarView: View {
     let configPath: String
@@ -80,6 +81,15 @@ struct HistorySidebarView: View {
                 
                 // Action buttons
                 HStack {
+                    Button("Copy Diff") {
+                        if let diff = selectedCommitDiff {
+                            copyDiffToClipboard(diff)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.system(size: 12 * globalZoomLevel))
+                    .disabled(selectedCommitDiff == nil)
+                    
                     Spacer()
                     
                     Button("Restore this Version") {
@@ -129,6 +139,12 @@ struct HistorySidebarView: View {
     private func loadCommitDetails(_ commit: Commit) {
         selectedCommitContent = VersionManager.shared.getContentForCommit(commit, for: configPath)
         selectedCommitDiff = VersionManager.shared.getDiffForCommit(commit, for: configPath)
+    }
+    
+    private func copyDiffToClipboard(_ diff: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(diff, forType: .string)
     }
 }
 

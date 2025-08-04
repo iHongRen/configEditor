@@ -6,43 +6,61 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct DiffTextView: View {
     let diffString: String
     var fontSize: CGFloat = 12
 
-    private struct DiffLine: Identifiable {
-        let id = UUID()
-        let text: String
-        let color: Color
-    }
-
-    private var diffLines: [DiffLine] {
-        diffString.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+    private var attributedString: AttributedString {
+        var result = AttributedString()
+        let lines = diffString.split(separator: "\n", omittingEmptySubsequences: false)
+        
+        for (index, line) in lines.enumerated() {
             let lineString = String(line)
+            var attributedLine = AttributedString(lineString)
+            
+            // Set color based on line type
             if lineString.starts(with: "+") {
-                return DiffLine(text: lineString, color: .green)
+                attributedLine.foregroundColor = .green
             } else if lineString.starts(with: "-") {
-                return DiffLine(text: lineString, color: .red)
+                attributedLine.foregroundColor = .red
             } else if lineString.starts(with: "@@") {
-                return DiffLine(text: lineString, color: .cyan)
+                attributedLine.foregroundColor = .cyan
             } else {
-                return DiffLine(text: lineString, color: .primary)
+                attributedLine.foregroundColor = .primary
+            }
+            
+            result.append(attributedLine)
+            
+            // Add newline except for the last line
+            if index < lines.count - 1 {
+                result.append(AttributedString("\n"))
             }
         }
+        
+        return result
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 1) {
-            ForEach(diffLines) { line in
-                Text(line.text)
-                    .foregroundColor(line.color)
-                    .font(.system(size: fontSize, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
+        ScrollView {
+            Text(attributedString)
+                .font(.system(size: fontSize, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+        }
+        .background(Color(NSColor.textBackgroundColor))
+        .contextMenu {
+            Button("Copy Diff") {
+                copyDiffToClipboard()
             }
         }
-        .padding(.vertical, 4)
-        .background(Color(NSColor.textBackgroundColor))
+    }
+    
+    private func copyDiffToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(diffString, forType: .string)
     }
 }
