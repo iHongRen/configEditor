@@ -31,6 +31,10 @@ class VersionManager {
         let safeFileName = URL(fileURLWithPath: configPath).lastPathComponent.replacingOccurrences(of: ".", with: "_")
         return versionsDirectory.appendingPathComponent(safeFileName)
     }
+    
+    private func getOriginalFileName(for configPath: String) -> String {
+        return URL(fileURLWithPath: configPath).lastPathComponent
+    }
 
     private func runGitCommand(args: [String], in directory: URL) -> (output: String?, error: String?, status: Int32) {
         let process = Process()
@@ -94,9 +98,10 @@ class VersionManager {
 
     func commit(content: String, for configPath: String) {
         let repoURL = getRepositoryURL(for: configPath)
+        let fileName = getOriginalFileName(for: configPath)
         initializeRepository(for: configPath)
 
-        let fileURL = repoURL.appendingPathComponent("config")
+        let fileURL = repoURL.appendingPathComponent(fileName)
         do {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
         } catch {
@@ -104,7 +109,7 @@ class VersionManager {
             return
         }
 
-        let addResult = runGitCommand(args: ["add", "config"], in: repoURL)
+        let addResult = runGitCommand(args: ["add", fileName], in: repoURL)
         if addResult.status != 0 {
             print("Git add failed: \(addResult.error ?? "Unknown error")")
             return
@@ -126,9 +131,10 @@ class VersionManager {
         }
         
         let repoURL = getRepositoryURL(for: configPath)
+        let fileName = getOriginalFileName(for: configPath)
         initializeRepository(for: configPath)
 
-        let fileURL = repoURL.appendingPathComponent("config")
+        let fileURL = repoURL.appendingPathComponent(fileName)
         do {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
         } catch {
@@ -136,7 +142,7 @@ class VersionManager {
             return
         }
 
-        let addResult = runGitCommand(args: ["add", "config"], in: repoURL)
+        let addResult = runGitCommand(args: ["add", fileName], in: repoURL)
         if addResult.status != 0 {
             print("Git add failed: \(addResult.error ?? "Unknown error")")
             return
@@ -177,7 +183,8 @@ class VersionManager {
 
     func getContentForCommit(_ commit: Commit, for configPath: String) -> String? {
         let repoURL = getRepositoryURL(for: configPath)
-        let showResult = runGitCommand(args: ["show", "\(commit.hash):config"], in: repoURL)
+        let fileName = getOriginalFileName(for: configPath)
+        let showResult = runGitCommand(args: ["show", "\(commit.hash):\(fileName)"], in: repoURL)
         
         if showResult.status != 0 {
             print("Git show failed: \(showResult.error ?? "Unknown error")")
@@ -188,15 +195,29 @@ class VersionManager {
 
     func getDiffForCommit(_ commit: Commit, for configPath: String) -> String? {
         let repoURL = getRepositoryURL(for: configPath)
-        // Diff against the parent commit (HEAD^)
-        let diffResult = runGitCommand(args: ["diff", "\(commit.hash)^", commit.hash, "--", "config"], in: repoURL)
+        
+        // First, check if this is the first commit by trying to get parent commits
+        let parentResult = runGitCommand(args: ["rev-list", "--parents", "-n", "1", commit.hash], in: repoURL)
+        
+        if parentResult.status == 0, let output = parentResult.output {
+            let parts = output.split(separator: " ")
+            if parts.count == 1 {
+                // This is the first commit (no parents), show the full content as diff
+                if let content = getContentForCommit(commit, for: configPath) {
+                    // Format as a diff showing all lines as additions
+                    let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+                    let diffLines = lines.map { "+\($0)" }
+                    return diffLines.joined(separator: "\n")
+                }
+                return "Initial commit - no changes to show"
+            }
+        }
+        
+        // Not the first commit, do normal diff
+        let fileName = getOriginalFileName(for: configPath)
+        let diffResult = runGitCommand(args: ["diff", "\(commit.hash)^", commit.hash, "--", fileName], in: repoURL)
 
         if diffResult.status != 0 {
-            // If it's the first commit, there's no parent to diff with.
-            // In this case, we show the full content of the initial commit.
-            if let error = diffResult.error, error.contains("unknown revision") {
-                return getContentForCommit(commit, for: configPath)
-            }
             print("Git diff failed: \(diffResult.error ?? "Unknown error")")
             return "Could not load diff."
         }
