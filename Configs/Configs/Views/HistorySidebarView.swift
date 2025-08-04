@@ -130,7 +130,6 @@ struct HistorySidebarView: View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
                 commitListView(geometry: geometry)
-                draggableDivider(geometry: geometry)
                 bottomContentView(geometry: geometry)
             }
         }
@@ -272,64 +271,7 @@ struct HistorySidebarView: View {
 //        .animation(.easeInOut(duration: 0.1), value: isHovered)
     }
     
-    private func draggableDivider(geometry: GeometryProxy) -> some View {
-        HStack {
-            Spacer()
-            
-            // Modern drag handle with dots
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { _ in
-                    Circle()
-                        .fill(Color.secondary.opacity(0.5))
-                        .frame(width: 3 * globalZoomLevel, height: 3 * globalZoomLevel)
-                }
-            }
-            .padding(.vertical, 2)
-            .padding(.horizontal, 12)
-            .background(
-                Capsule()
-                    .fill(Color.secondary.opacity(0.1))
-            )
-            
-            Spacer()
-        }
-        .frame(height: 10)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
-        .overlay(
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 1),
-            alignment: .top
-        )
-        .overlay(
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 1),
-            alignment: .bottom
-        )
-        .onHover { isHovering in
-            DispatchQueue.main.async {
-                if isHovering {
-                    NSCursor.resizeUpDown.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-        }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    let totalHeight = geometry.size.height
-                    guard totalHeight > 100 else { return }
-                    
-                    let currentSplitHeight = totalHeight * splitPosition
-                    let newSplitHeight = currentSplitHeight + value.translation.height
-                    let newSplitPosition = newSplitHeight / totalHeight
-                    
-                    splitPosition = max(0.25, min(0.75, newSplitPosition))
-                }
-        )
-    }
+
     
     private func bottomContentView(geometry: GeometryProxy) -> some View {
         Group {
@@ -344,90 +286,135 @@ struct HistorySidebarView: View {
     
     private func diffContentView(geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
-            // Diff header
-            HStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Button(action: {
-                        if let diff = selectedCommitDiff {
-                            copyDiffToClipboard(diff)
-                        } else if let content = selectedCommitContent {
-                            copyContentToClipboard(content)
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.accentColor.opacity(0.15))
-                                .frame(width: 24 * globalZoomLevel, height: 24 * globalZoomLevel)
-                            
-                            Image(systemName: "doc.text")
-                                .font(.system(size: 11 * globalZoomLevel, weight: .medium))
-                                .foregroundColor(Color.accentColor)
+            // Diff header with drag functionality
+            ZStack {
+                // 可拖动的背景层 - 覆盖整个 header
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .onHover { isHovering in
+                        DispatchQueue.main.async {
+                            if isHovering {
+                                NSCursor.resizeUpDown.push()
+                            } else {
+                                NSCursor.pop()
+                            }
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Copy content to clipboard")
-                    
-                    Text("Changes")
-                        .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
-                        .foregroundColor(.primary)
-                }
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                let totalHeight = geometry.size.height
+                                guard totalHeight > 100 else { return }
+                                
+                                let currentSplitHeight = totalHeight * splitPosition
+                                let newSplitHeight = currentSplitHeight + value.translation.height
+                                let newSplitPosition = newSplitHeight / totalHeight
+                                
+                                splitPosition = max(0.25, min(0.75, newSplitPosition))
+                            }
+                    )
                 
-                Spacer()
-                
+                // Header 内容层 - 按钮可以正常交互
                 HStack(spacing: 12) {
-                    if let commit = selectedCommit {
-                        HStack(spacing: 6) {
-                            Text("commit")
-                                .font(.system(size: 10 * globalZoomLevel, weight: .medium))
-                                .foregroundColor(.secondary)
-                            
-                            Text(commit.hash.prefix(7))
-                                .font(.system(size: 11 * globalZoomLevel, weight: .semibold, design: .monospaced))
-                                .foregroundColor(Color.accentColor)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.accentColor.opacity(0.1))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-                                        )
-                                )
+                    HStack(spacing: 8) {
+                        Button(action: {
+                            if let diff = selectedCommitDiff {
+                                copyDiffToClipboard(diff)
+                            } else if let content = selectedCommitContent {
+                                copyContentToClipboard(content)
+                            }
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 24 * globalZoomLevel, height: 24 * globalZoomLevel)
+                                
+                                Image(systemName: "doc.text")
+                                    .font(.system(size: 11 * globalZoomLevel, weight: .medium))
+                                    .foregroundColor(Color.accentColor)
+                            }
                         }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Copy content to clipboard")
+                        .onHover { isHovering in
+                            DispatchQueue.main.async {
+                                if isHovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
+                        }
+                        
+                        Text("Changes")
+                            .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
+                            .foregroundColor(.primary)
                     }
                     
-                    // Restore button
-                    Button(action: {
-                        showRestoreConfirmation = true
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
-                            Text("Restore")
-                                .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
+                    Spacer()
+                    
+                    HStack(spacing: 12) {
+                        if let commit = selectedCommit {
+                            HStack(spacing: 6) {   
+                                Text(commit.hash.prefix(7))
+                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(Color.accentColor)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.accentColor.opacity(0.1))
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                                            )
                                     )
-                                )
-                                .shadow(color: Color.accentColor.opacity(0.2), radius: 3, x: 0, y: 1)
-                        )
+                            }
+                        }
+                        
+                        // Restore button
+                        Button(action: {
+                            showRestoreConfirmation = true
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
+                                Text("Restore")
+                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .shadow(color: Color.accentColor.opacity(0.2), radius: 3, x: 0, y: 1)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Restore this version to the editor")
+                        .onHover { isHovering in
+                            DispatchQueue.main.async {
+                                if isHovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
+                        }
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Restore this version to the editor")
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
+            .frame(height: 48 * globalZoomLevel)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
             .overlay(
                 Rectangle()
@@ -436,7 +423,7 @@ struct HistorySidebarView: View {
                 alignment: .bottom
             )
             
-            // Diff content - 简化实现
+            // Diff content
             ScrollView {
                 if let diff = selectedCommitDiff {
                     DiffTextView(diffString: diff, fontSize: 13 * globalZoomLevel)
