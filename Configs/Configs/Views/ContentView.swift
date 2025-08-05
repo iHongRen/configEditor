@@ -84,9 +84,26 @@ struct ContentView: View {
                             configPath: file.path,
                             showHistorySidebar: $showHistorySidebar,
                             globalZoomLevel: globalZoomLevel,
-                            onRestore: { restoredContent in
+                            onRestore: { restoredContent, commitHash in
+                                // 立即更新 UI，让弹窗快速消失
                                 self.fileContent = restoredContent
                                 self.originalFileContent = restoredContent // Update original content when restoring
+                                
+                                // 在后台线程执行保存操作，避免阻塞 UI
+                                DispatchQueue.global(qos: .userInitiated).async {
+                                    FileOperations.saveFileContentWithVersioning(
+                                        file: file,
+                                        content: restoredContent,
+                                        originalContent: restoredContent, // Use the restored content as original
+                                        cursorLine: "Restored from version \(commitHash.prefix(7))",
+                                        onSaveSuccess: { newDate, newContent in
+                                            DispatchQueue.main.async {
+                                                self.fileModificationDate = newDate
+                                                self.originalFileContent = newContent
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         )
                         .frame(minWidth: 300 * globalZoomLevel, maxWidth: 400 * globalZoomLevel)

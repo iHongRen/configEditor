@@ -12,7 +12,7 @@ struct HistorySidebarView: View {
     let configPath: String
     @Binding var showHistorySidebar: Bool
     let globalZoomLevel: Double
-    var onRestore: (String) -> Void
+    var onRestore: (String, String) -> Void // (content, commitHash)
     
     @State private var commits: [Commit] = []
     @State private var selectedCommit: Commit?
@@ -22,6 +22,7 @@ struct HistorySidebarView: View {
     @State private var hoveredCommit: Commit?
     @State private var isLoadingDiff = false
     @State private var showRestoreConfirmation = false
+    @State private var isRestoring = true
 
 
     var body: some View {
@@ -51,10 +52,16 @@ struct HistorySidebarView: View {
         .alert("Restore Version", isPresented: $showRestoreConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Restore", role: .destructive) {
-                if let content = selectedCommitContent {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        onRestore(content)
-                        showRestoreSuccess()
+                if let content = selectedCommitContent, let commit = selectedCommit, !isRestoring {
+                    isRestoring = true
+                    
+                    // 立即调用恢复回调，让 UI 快速响应
+                    onRestore(content, commit.hash)
+                    
+                    // 短暂延迟后重置状态和显示成功提示
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.isRestoring = false
+                        self.showRestoreSuccess()
                     }
                 }
             }
@@ -357,12 +364,20 @@ struct HistorySidebarView: View {
                     HStack(spacing: 12) {
                         // Restore button
                         Button(action: {
-                            showRestoreConfirmation = true
+                            if !isRestoring {
+                                showRestoreConfirmation = true
+                            }
                         }) {
                             HStack(spacing: 5) {
-                                Image(systemName: "arrow.counterclockwise")
-                                    .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
-                                Text("Restore")
+                                if isRestoring {
+                                    ProgressView()
+                                        .scaleEffect(0.4)
+                                        .frame(width: 8 * globalZoomLevel, height: 8 * globalZoomLevel)
+                                } else {
+                                    Image(systemName: "arrow.counterclockwise")
+                                        .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
+                                }
+                                Text(isRestoring ? "Restoring..." : "Restore")
                                     .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
                             }
                             .foregroundColor(.white)
@@ -372,19 +387,22 @@ struct HistorySidebarView: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(
                                         LinearGradient(
-                                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                                            colors: isRestoring ? 
+                                                [Color.secondary, Color.secondary.opacity(0.8)] :
+                                                [Color.accentColor, Color.accentColor.opacity(0.8)],
                                             startPoint: .top,
                                             endPoint: .bottom
                                         )
                                     )
-                                    .shadow(color: Color.accentColor.opacity(0.2), radius: 3, x: 0, y: 1)
+                                    .shadow(color: (isRestoring ? Color.secondary : Color.accentColor).opacity(0.2), radius: 3, x: 0, y: 1)
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help("Restore this version to the editor")
+                        .disabled(isRestoring)
+                        .help(isRestoring ? "Restoring version..." : "Restore this version to the editor")
                         .onHover { isHovering in
                             DispatchQueue.main.async {
-                                if isHovering {
+                                if isHovering && !isRestoring {
                                     NSCursor.pointingHand.push()
                                 } else {
                                     NSCursor.pop()
