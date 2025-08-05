@@ -20,40 +20,11 @@ struct ConfigsApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About Configs") {
-                    let appName = Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "Configs"
-                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-
-                    let creditsString = githubURLString
-                    
-                    let attributedCredits = NSMutableAttributedString(string: creditsString, attributes: [
-                        .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-                    ])
-
-                    if let githubRange = creditsString.range(of: githubURLString) {
-                        attributedCredits.addAttribute(.link, value: URL(string: githubURLString)!, range: NSRange(githubRange, in: creditsString))
-                    }
-
-                    NSApplication.shared.orderFrontStandardAboutPanel(options: [
-                        .applicationName: appName,
-                        .applicationVersion: version,
-                        .credits: attributedCredits,
-                        .applicationIcon: NSImage(named: "AppIcon")!
-                    ])
+                    AboutWindow.show()
                 }
             }
             
-            // Add a new CommandGroup for Help menu items
-            CommandGroup(replacing: .help) { // Replace the default Help menu
-                Button("Keyboard Shortcuts") {
-                    KeyboardShortcutsWindow.show()
-                }
-                
-                Button("View on GitHub") {
-                    if let url = URL(string: githubURLString) {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            }
+
         }
     }
     
@@ -68,7 +39,7 @@ struct ConfigsApp: App {
             guard let mainMenu = NSApplication.shared.mainMenu else { return }
             
             for item in mainMenu.items {
-                if ["File", "Edit", "View", "Window"].contains(item.title) {
+                if ["File", "Edit", "View", "Window", "Help"].contains(item.title) {
                     item.isHidden = true
                 }
                 
