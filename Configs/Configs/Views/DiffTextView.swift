@@ -48,7 +48,7 @@ struct DiffTextView: View {
                 .font(.system(size: fontSize, design: .monospaced))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
+                .padding(5)
         }
         .background(Color(NSColor.textBackgroundColor))
         .contextMenu {

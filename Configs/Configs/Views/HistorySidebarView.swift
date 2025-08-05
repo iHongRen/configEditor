@@ -22,7 +22,7 @@ struct HistorySidebarView: View {
     @State private var hoveredCommit: Commit?
     @State private var isLoadingDiff = false
     @State private var showRestoreConfirmation = false
-    @State private var isRestoring = true
+    @State private var isRestoring = false
 
 
     var body: some View {
@@ -87,7 +87,7 @@ struct HistorySidebarView: View {
                     .frame(width: 28 * globalZoomLevel, height: 28 * globalZoomLevel)
                 
                 Image(systemName: "clock")
-                    .font(.system(size: 12 * globalZoomLevel, weight: .semibold))
+                    .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.white)
             }
             
@@ -187,6 +187,12 @@ struct HistorySidebarView: View {
             }
         }
         .frame(height: max(120, geometry.size.height * splitPosition))
+        .overlay(
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 1),
+            alignment: .bottom
+        )
     }
     
     private func commitRowView(commit: Commit) -> some View {
