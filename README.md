@@ -17,7 +17,14 @@ It automatically scans for common configuration files across various programming
 ## Features
 
 * **Automatic Discovery**: Scans your home directory for common configuration files (e.g., `.zshrc`, `.gitconfig`, `.vimrc`, `.npmrc`, etc.).
+
 * **Automatic source**: When editing files like `.zshrc` and `.bashrc`, it automatically executes `source ~/.zshrc`, making changes take effect immediately.
+
+* **Version Control**: Built-in Git-based version tracking system that automatically creates commits when you save files, allowing you to:
+  - View complete version history for each configuration file
+  - Compare changes between different versions with diff view
+  - Restore any previous version with one click
+  - Smart commit messages using the current cursor line content or timestamp
 
 * **File Management**: Add custom configuration files, pin frequently used files for quick access, and delete custom files.
 
@@ -38,13 +45,19 @@ It automatically scans for common configuration files across various programming
     *   `Cmd + 0`: Reset Zoom.
     *   `Esc`: Close Search Bar.
     
-* **Context Menu Actions**: Right-click on a file in the sidebar for options like 
-
+* **Context Menu Actions**: Right-click on a file in the sidebar for options like:
     * Pin/Unpin 
-    * Copy Path,
-    * Open in Finder,
+    * Copy Path
+    * Open in Finder
     * Open in VSCode
     * Open in Cursor
+    * Open in Terminal
+
+* **Version History Sidebar**: Click the history button in the toolbar to view:
+    * Complete commit history with timestamps
+    * Diff view showing exact changes made
+    * One-click restore functionality
+    * Smart commit messages based on your edits
 
 ## Installation
 
