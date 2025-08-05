@@ -45,20 +45,7 @@ struct ConfigsApp: App {
             // Add a new CommandGroup for Help menu items
             CommandGroup(replacing: .help) { // Replace the default Help menu
                 Button("Keyboard Shortcuts") {
-                    // Display an alert with shortcuts
-                    let shortcuts = """
-                    Cmd + F: Show/Hide Search Bar
-                    Cmd + S: Save File
-                    Cmd + /: Toggle Comment/Uncomment Lines
-                    Cmd + = / Cmd + +: Zoom In
-                    Cmd + -: Zoom Out
-                    Cmd + 0: Reset Zoom
-                    Esc: Close Search Bar
-                    """
-                    let alert = NSAlert()
-                    alert.messageText = "Keyboard Shortcuts"
-                    alert.informativeText = shortcuts
-                    alert.runModal()
+                    KeyboardShortcutsWindow.show()
                 }
                 
                 Button("View on GitHub") {
