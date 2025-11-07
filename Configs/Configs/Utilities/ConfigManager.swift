@@ -48,6 +48,15 @@ class ConfigManager: ObservableObject {
         }
     }
 
+    /// Set or remove a tag for a given config file and persist changes.
+    func setTag(_ tag: FileTag?, for file: ConfigFile) {
+        if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
+            configFiles[index].tag = tag
+            sortConfigFiles()
+            saveAllConfigs()
+        }
+    }
+
     func sortConfigFiles() {
         configFiles.sort {
             if $0.isPinned != $1.isPinned {
