@@ -42,7 +42,9 @@ struct CommonConfigData {
         // other
         (".env", ".env"), (".env.local", ".env.local"), (".env.production", ".env.production"), (".env.development", ".env.development"), (".env.test", ".env.test"), (".agignore", ".agignore"), (".ackrc", ".ackrc"), (".rsyncrc", ".rsyncrc"), (".wgetrc", ".wgetrc"), (".curlrc", ".curlrc"), (".lscolors", ".lscolors"), (".lesshst", ".lesshst"), (".node_repl_history", ".node_repl_history"), (".bash_history", ".bash_history"), (".zsh_history", ".zsh_history"), (".mysql_history", ".mysql_history"), (".psql_history", ".psql_history"), (".sqlite_history", ".sqlite_history"),
         // tool
-        (".config/starship.toml", ".config/starship.toml"), (".config/alacritty/alacritty.yml", ".config/alacritty/alacritty.yml"), (".config/kitty/kitty.conf", ".config/kitty/kitty.conf"), (".config/fish/config.fish", ".config/fish/config.fish")
+        (".config/starship.toml", ".config/starship.toml"), (".config/alacritty/alacritty.yml", ".config/alacritty/alacritty.yml"), (".config/kitty/kitty.conf", ".config/kitty/kitty.conf"), (".config/fish/config.fish", ".config/fish/config.fish"),
+        // harmony
+        (".ohpmrc",".ohpm/.ohpmrc")
     ]
 
     static func scanForDefaultConfigFiles() -> [ConfigFile] {
