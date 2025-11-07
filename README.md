@@ -1,88 +1,96 @@
 # Configs
 
-[中文 README](./README_zh.md)
+[English README](./README_en.md)
 
-Configs is a **macOS** **application** designed to help you easily manage and edit your configuration files. Based on SwiftUI.
+Configs 是一款 **macOS** **应用程序**，旨在帮助您轻松管理和编辑您的配置文件,基于 SwiftUI。
 
-It automatically scans for common configuration files across various programming languages and tools, provides a convenient interface for viewing and editing them, and allows you to add your own custom configuration files.
+它会自动扫描各种编程语言和工具的常见配置文件，提供一个方便的界面来查看和编辑它们，并允许您添加自己的自定义配置文件。
 
-
-## Screenshots
+## 截图
 
 ![](./screenshots/light.png)
 
+
 ![](./screenshots/dark.png)
 
+![](./screenshots/tag.png)
 
-## Features
 
-* **Automatic Discovery**: Scans your home directory for common configuration files (e.g., `.zshrc`, `.gitconfig`, `.vimrc`, `.npmrc`, etc.).
+## 功能
 
-* **Automatic source**: When editing files like `.zshrc` and `.bashrc`, it automatically executes `source ~/.zshrc`, making changes take effect immediately.
+- **自动发现**：扫描您的主目录以查找常见的配置文件（例如，`.zshrc`、`.gitconfig`、`.vimrc`、`.npmrc` 等）。
 
-* **Version Control**: Built-in Git-based version tracking system that automatically creates commits when you save files, allowing you to:
-  - View complete version history for each configuration file
-  - Compare changes between different versions with diff view
-  - Restore any previous version with one click
-  - Smart commit messages using the current cursor line content or timestamp
+- **自动 source**: 当编辑 .zshrc 和 .bashrc 这类文件时，保存时自动执行 `source ~/.zshrc`，使修改立即生效。
 
-* **File Management**: Add custom configuration files, pin frequently used files for quick access, and delete custom files.
+- **版本控制**：内置基于 Git 的版本跟踪系统，在您保存文件时自动创建提交，让您能够：
+  - 查看每个配置文件的完整版本历史
+  - 通过差异视图比较不同版本之间的变化
+  - 一键恢复任何以前的版本
+  - 智能提交信息，使用当前光标行内容或时间戳
 
-* **Code Editor**: Integrated code editor with syntax highlighting for various file types.
+- **文件管理**：添加自定义配置文件，置顶常用文件以便快速访问，并删除自定义文件。
 
-* **Search Functionality**: Search for specific configuration files by name or path in the sidebar, and search within the content of the currently open file.
+- **代码编辑器**：集成代码编辑器，支持多种文件类型的语法高亮。
 
-* **Zoom Control**: Adjust the zoom level of the editor content.
+- **搜索功能**：在侧边栏中按名称或路径搜索特定配置文件，并在当前打开的文件内容中进行搜索。
 
-* **Appearance Options**: Switch between **light** and **dark** mode.
+- **缩放控制**：调整编辑器内容的缩放级别。
 
-*   **Keyboard Shortcuts**:
-    *   `Cmd + F`: Show/Hide Search Bar in the editor.
-    *   `Cmd + S`: Save File.
-    *   `Cmd + /`: Toggle comment on selected lines.
-    *   `Cmd + =` / `Cmd + +`: Zoom In.
-    *   `Cmd + -`: Zoom Out.
-    *   `Cmd + 0`: Reset Zoom.
-    *   `Esc`: Close Search Bar.
-    
-* **Context Menu Actions**: Right-click on a file in the sidebar for options like:
-    * Pin/Unpin 
-    * Copy Path
-    * Open in Finder
-    * Open in VSCode
-    * Open in Cursor
-    * Open in Terminal
+- **外观选项**：在**浅色**和**深色**模式之间切换。
+- **键盘快捷键**：
+  - `Cmd + F`：在编辑器中显示/隐藏搜索栏。
+  - `Cmd + S`：保存文件。
+  - `Cmd + /`：注释/取消注释选中的行。
+  - `Cmd + =` / `Cmd + +`：放大。
+  - `Cmd + -`：缩小。
+  - `Cmd + 0`：重置缩放。
+  - `Esc`：关闭搜索栏。
+- **上下文菜单操作**：在侧边栏中右键单击文件，可选择：
+  - 置顶/取消置顶
+  - 复制路径
+  - 在 Finder 中打开
+  - 在 VSCode 中打开
+  - 在 Cursor 中打开
+  - 在终端中打开
 
-* **Version History Sidebar**: Click the history button in the toolbar to view:
-    * Complete commit history with timestamps
-    * Diff view showing exact changes made
-    * One-click restore functionality
-    * Smart commit messages based on your edits
+- **版本历史侧边栏**：点击工具栏中的历史按钮可查看：
+  - 带时间戳的完整提交历史
+  - 显示确切更改的差异视图
+  - 一键恢复功能
+  - 基于您编辑内容的智能提交信息
 
-## Installation
+- **标签（Tag）功能**：可以在侧边栏中为文件添加短文本彩色标签。
+  - 在侧边栏中右键单击文件选择 `Tag` 打开标签编辑弹窗（sheet）。
+  - 编辑器为所见即所得：输入时预览宽度随文字自适应；`tag` 为空时显示为圆形颜色块。
+  - 新建标签默认颜色为红色；也可以从快捷色块选择或通过 RGBA 滑块微调颜色。
+  - 为保证可读性，标签长度有限制（中文最多 5 字，英文最多 10 字）。
+  - 点击保存会将标签保存到文件上，标签会显示在侧边栏文件名旁。
+  - 列表上双击标签可打开标签弹框。
 
-To install and run Configs, you will need Xcode installed on your macOS machine.
+## 安装
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/iHongRen/configEditor.git
-    cd configEditor/Configs
-    ```
+要安装和运行 Configs，您需要在 macOS 机器上安装 Xcode。
 
-2.  **Open in Xcode**:
-    Open the `Configs.xcodeproj` file in Xcode.
+1. **克隆仓库**：
 
-3.  **Build the Application**:
-    Select your target (e.g., "My Mac") and click the "Build" button (⌘B) in Xcode. The `Configs.app` will be generated in the `Products` folder within Xcode's project navigator. You can right-click on `Configs.app` and select "Show in Finder" to locate it.
+   ```bash
+   git clone https://github.com/iHongRen/configEditor.git
+   cd configEditor/Configs
+   ```
 
-4.  **Install and Run**:
-    unzip [Configs.zip](https://github.com/iHongRen/configEditor/releases) , drag the `Configs.app` bundle to your `/Applications` folder.
-    Open Terminal and run the following command to make the application executable:
-    
-    ```bash
-    chmod +x /Applications/Configs.app/Contents/MacOS/Configs
-    ```
-    You can now open the application from your `/Applications` folder or Launchpad.
-    
-    If you encounter a popup warning about the application not being trusted, go to **System Preferences** > **Privacy & Security** > **Security** > **Allow Applications from the App Store and Known Developers** > **Open Anyway**
+2. **在 Xcode 中打开**：
+   在 Xcode 中打开 `Configs.xcodeproj` 文件。
 
+3. **构建应用程序**：
+   选择您的目标（例如，“My Mac”），然后单击 Xcode 中的“构建”按钮（⌘B）。`Configs.app` 将在 Xcode 项目导航器中的 `Products` 文件夹中生成。您可以右键单击 `Configs.app` 并选择“在 Finder 中显示”来找到它。
+
+4. **安装并运行**：
+   解压 [configs.zip](https://github.com/iHongRen/configEditor/releases) 后， 将 `Configs.app` 包拖到您的 `/Applications` 文件夹中。
+   打开终端并运行以下命令，使应用程序可执行：
+
+   ```bash
+   chmod +x /Applications/Configs.app/Contents/MacOS/Configs
+   ```
+   现在您可以从 `/Applications` 文件夹或 Launchpad 打开应用程序。
+   
+   如果弹窗提示无法打开，打开 **系统偏好设置** > **隐私与安全性** > **安全性** > 允许以下来源的应用程序：**App Store与已知开发者** > **仍要打开**
