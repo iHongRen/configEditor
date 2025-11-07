@@ -108,7 +108,7 @@ struct DetailContentView: View {
             Divider()
             HStack(spacing: 8 * globalZoomLevel) {
                 if let selectedFile = selectedFile {
-                    Text(selectedFile.name)
+                    Text(selectedFile.path)
                         .foregroundColor(.secondary)
                     Spacer()
                     if fileSize > 0 {
