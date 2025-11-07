@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 
 // Custom slider that only displays a track (we draw) and a circular thumb.
@@ -61,6 +62,99 @@ struct ColorSlider: View {
     }
 }
 
+// TagNameEditor: a combined WYSIWYG tag name input + preview.
+// Uses AppKit text measurement for reliable width updates on macOS.
+struct TagNameEditor: View {
+    @Binding var text: String
+    @Binding var r: Double
+    @Binding var g: Double
+    @Binding var b: Double
+    @Binding var a: Double
+
+    var fontSize: CGFloat = 15
+
+    private var bgColor: Color {
+        Color(red: r/255.0, green: g/255.0, blue: b/255.0).opacity(a)
+    }
+
+    private let height: CGFloat = 30
+    private let horizontalPadding: CGFloat = 20 // left + right
+    @FocusState private var isFocused: Bool
+    @State private var caretVisible: Bool = true
+
+    var body: some View {
+        HStack(spacing: 0) {
+            TextField("", text: $text)
+                .font(.system(size: fontSize))
+                .textFieldStyle(PlainTextFieldStyle())
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, horizontalPadding/2)
+                .frame(width: currentWidth(), height: height)
+                .background(bgColor)
+                .foregroundColor(.white)
+                .clipShape(Capsule())
+                .onChange(of: text) { _, new in
+                    // 限制标签字数：中文 5 字，英文 10 字
+                    let hasHan = new.range(of: "\\p{Han}", options: .regularExpression) != nil
+                    let maxLen = hasHan ? 5 : 10
+                    if new.count > maxLen {
+                        text = String(new.prefix(maxLen))
+                    }
+                    // If text becomes empty via keyboard (cmd+delete) ensure field stays focused so our custom caret can show
+                    if new.isEmpty {
+                        DispatchQueue.main.async {
+                            self.isFocused = true
+                        }
+                    }
+                }
+                .focused($isFocused)
+                .onAppear {
+                    // Ensure caret is at end (no full-selection) when the sheet appears for existing tags
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                        // try to move the NSTextView selection to end if possible
+                        if let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
+                            let length = (editor.string as NSString).length
+                            editor.setSelectedRange(NSRange(location: length, length: 0))
+                        }
+                        // ensure this field is focused
+                        self.isFocused = true
+                    }
+                }
+                // blink caret for empty state
+                .onReceive(Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()) { _ in
+                    caretVisible.toggle()
+                }
+                .overlay(
+                    Group {
+                        if text.isEmpty && isFocused {
+                            // custom caret centered inside the capsule
+                            Rectangle()
+                                .fill(Color.white)
+                                .frame(width: 1, height: height * 0.5)
+                                .opacity(caretVisible ? 1 : 0)
+                                .animation(.linear(duration: 0.05), value: caretVisible)
+                        }
+                    }
+                )
+        }
+    }
+
+    private func textWidth() -> CGFloat {
+        if text.isEmpty { return 0 }
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let size = (text as NSString).size(withAttributes: attrs)
+        return ceil(size.width)
+    }
+
+    private func currentWidth() -> CGFloat {
+        if text.isEmpty { return height }
+        let extra: CGFloat = 8
+        let w = textWidth() + horizontalPadding + extra
+        return max(height, w)
+    }
+}
+
 struct SidebarView: View {
     @ObservedObject var configManager: ConfigManager
     @Binding var selectedFile: ConfigFile?
@@ -75,11 +169,11 @@ struct SidebarView: View {
     @Binding var fileModificationDate: Date?
 
     // Tagging UI state
-    @State private var showTagSheet: Bool = false
     @State private var tagTextInput: String = ""
-    @State private var tagR: Double = 200
-    @State private var tagG: Double = 200
-    @State private var tagB: Double = 200
+    // default tag color: red (matching presets)
+    @State private var tagR: Double = 255
+    @State private var tagG: Double = 59
+    @State private var tagB: Double = 48
     @State private var tagA: Double = 1.0
 
     var body: some View {
@@ -134,39 +228,37 @@ struct SidebarView: View {
                             // Tag bubble display (capsule)
                             if let tag = file.tag {
                                 let bg = Color(red: tag.r, green: tag.g, blue: tag.b).opacity(tag.a)
-                                // 标签字体始终为白色
+                           
                                 let fgColor: Color = .white
                                 if tag.text.isEmpty {
-                                    Circle()
-                                        .fill(bg)
-                                        .frame(width: 12, height: 12)
-                                        .onTapGesture(count: 2) {
-                                            // 双击圆形 tag 打开设置
-                                            contextMenuFile = file
-                                            tagTextInput = tag.text
-                                            tagR = tag.r * 255.0
-                                            tagG = tag.g * 255.0
-                                            tagB = tag.b * 255.0
-                                            tagA = tag.a
-                                            showTagSheet = true
-                                        }
+                                        Circle()
+                                            .fill(bg)
+                                            .frame(width: 12, height: 12)
+                                            .onTapGesture(count: 2) {
+                                                tagTextInput = tag.text
+                                                tagR = tag.r * 255.0
+                                                tagG = tag.g * 255.0
+                                                tagB = tag.b * 255.0
+                                                tagA = tag.a
+                                                contextMenuFile = file
+                                            }
                                 } else {
                                     Text(tag.text)
-                                        .font(.system(size: 10 * globalZoomLevel))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
+                                        .font(.system(size: 9 * globalZoomLevel))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
                                         .background(bg)
                                         .foregroundColor(fgColor)
                                         .clipShape(Capsule())
                                         .onTapGesture(count: 2) {
-                                        // 双击已设置的标签，打开标签设置弹窗
-                                            contextMenuFile = file
+                                   
+                                            // prepare state first, then present sheet by setting contextMenuFile
                                             tagTextInput = tag.text
                                             tagR = tag.r * 255.0
                                             tagG = tag.g * 255.0
                                             tagB = tag.b * 255.0
                                             tagA = tag.a
-                                            showTagSheet = true
+                                            contextMenuFile = file
                                         }
                                 }
                             }
@@ -201,10 +293,8 @@ struct SidebarView: View {
                                 }
                             }
 
-                            // 打标签 - 放在第二个位置
                             Button(action: {
-                                // prepare popover with existing values if any
-                                contextMenuFile = file
+                                // prepare popover state first, then set contextMenuFile to present sheet
                                 if let tag = file.tag {
                                     tagTextInput = tag.text
                                     tagR = tag.r * 255.0
@@ -213,28 +303,17 @@ struct SidebarView: View {
                                     tagA = tag.a
                                 } else {
                                     tagTextInput = ""
-                                    tagR = 200
-                                    tagG = 200
-                                    tagB = 200
+                                    // default to red
+                                    tagR = 255
+                                    tagG = 59
+                                    tagB = 48
                                     tagA = 1.0
                                 }
-                                showTagSheet = true
+                                contextMenuFile = file
                             }) {
                                 HStack {
                                     Image(systemName: "tag")
-                                    Text("打标签")
-                                }
-                            }
-
-                            // 移除标签（仅当存在标签时显示）
-                            if file.tag != nil {
-                                Button(action: {
-                                    configManager.setTag(nil, for: file)
-                                }) {
-                                    HStack {
-                                        Image(systemName: "tag.slash")
-                                        Text("移除标签")
-                                    }
+                                    Text("Tag")
                                 }
                             }
 
@@ -285,6 +364,8 @@ struct SidebarView: View {
                                 }
                             }
 
+                            Divider()
+
                             Button(role: .destructive, action: {
                                 contextMenuFile = file
                                 showDeleteAlert = true
@@ -318,43 +399,22 @@ struct SidebarView: View {
             }
         }
 
-        // Tagging sheet (original behavior) - improved layout
-        .sheet(isPresented: $showTagSheet) {
+    // Tagging sheet (item-based) - improved layout
+    .sheet(item: $contextMenuFile) { target in
             VStack(spacing: 16) {
-                Text("给配置文件打标签")
-                    .font(.headline)
+                Text("Add Tag")
+                    .font(.title3)
                     .padding(.top, 16)
 
-                // Input and preview on the same row
-                HStack(spacing: 12) {
-                    TextField("标签文本", text: $tagTextInput)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onChange(of: tagTextInput) { _, new in
-                            // 限制标签字数：中文 5 字，英文 10 字
-                            let hasHan = new.range(of: "\\p{Han}", options: .regularExpression) != nil
-                            let maxLen = hasHan ? 5 : 10
-                            if new.count > maxLen {
-                                tagTextInput = String(new.prefix(maxLen))
-                            }
-                        }
-
-                    // Preview capsule
-                    Text(tagTextInput.isEmpty ? "预览" : tagTextInput)
-                        .font(.system(size: 12))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color(red: tagR/255.0, green: tagG/255.0, blue: tagB/255.0).opacity(tagA))
-                        .foregroundColor(.white)
-                        .clipShape(Capsule())
+                // WYSIWYG Tag editor: combined input + preview
+                HStack {
+                    TagNameEditor(text: $tagTextInput, r: $tagR, g: $tagG, b: $tagB, a: $tagA)
                 }
                 .padding(.horizontal)
 
                 // Quick colors under input
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("快捷颜色")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
+                   
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
@@ -438,15 +498,31 @@ struct SidebarView: View {
                 .padding(.horizontal)
 
                 Spacer()
-
+           
+                
                 // Actions: Delete (left) | Cancel | Save (right) - styled consistently
                 HStack(spacing: 12) {
-                    if let target = contextMenuFile, target.tag != nil {
+                    
+                    // Cancel (filled but subtle)
+                    Button(action: { contextMenuFile = nil }) {
+                        Text("Cancel")
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer()
+
+                    if target.tag != nil {
                         Button(action: {
                             configManager.setTag(nil, for: target)
-                            showTagSheet = false
+                            contextMenuFile = nil
                         }) {
-                            Text("删除")
+                            Text("Delete")
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -456,32 +532,13 @@ struct SidebarView: View {
                         .buttonStyle(PlainButtonStyle())
                     }
 
-                    Spacer()
-
-                    // Cancel (filled but subtle)
-                    Button(action: { showTagSheet = false }) {
-                        Text("取消")
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-
                     // Save (primary)
                     Button(action: {
-                        guard let target = contextMenuFile else {
-                            showTagSheet = false
-                            return
-                        }
                         let tag = FileTag(text: tagTextInput, r: (tagR/255.0), g: (tagG/255.0), b: (tagB/255.0), a: tagA)
                         configManager.setTag(tag, for: target)
-                        showTagSheet = false
+                        contextMenuFile = nil
                     }) {
-                        Text("保存")
+                        Text("Save")
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
@@ -494,7 +551,7 @@ struct SidebarView: View {
                 }
                 .padding([.horizontal, .bottom])
             }
-            .frame(width: 250)
+            .frame(width: 280)
         }
     }
 }
