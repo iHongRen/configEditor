@@ -2,95 +2,58 @@
 
 [English README](./README_en.md)
 
-Configs 是一款 **macOS** **应用程序**，旨在帮助您轻松管理和编辑您的配置文件,基于 SwiftUI。
-
-它会自动扫描各种编程语言和工具的常见配置文件，提供一个方便的界面来查看和编辑它们，并允许您添加自己的自定义配置文件。
+一款 **macOS** 配置文件管理工具，快速查看、编辑和管理电脑上的各种配置文件（如 `.zshrc`、`.gitconfig` 等）。采用 SwiftUI 开发。
 
 ## 截图
 
 ![](./screenshots/light.png)
 
-
 ![](./screenshots/dark.png)
 
 ![](./screenshots/tag.png)
 
-
 ## 功能
 
-- **自动发现**：扫描您的主目录以查找常见的配置文件（例如，`.zshrc`、`.gitconfig`、`.vimrc`、`.npmrc` 等）。
+- **自动扫描**：自动发现常见的配置文件（`.zshrc`、`.bashrc`、`.gitconfig`、`.vimrc` 等）
+- **即时生效**：编辑 `.zshrc` 等 shell 配置文件后，保存时自动执行 `source` 命令，改动立即生效
+- **版本管理**：基于 Git 自动记录每次编辑，支持查看历史、对比差异、一键恢复
+- **分类管理**：可以添加自定义文件、置顶常用配置、打标签分组
+- **代码编辑器**：多种文件类型的语法高亮，支持搜索、缩放、黑暗模式
+- **快捷菜单**：右键文件可以快速操作（在 Finder、Terminal、VSCode 中打开等）
+- **彩色标签**：为配置文件添加短文本彩色标签，便于分组识别
 
-- **自动 source**: 当编辑 .zshrc 和 .bashrc 这类文件时，保存时自动执行 `source ~/.zshrc`，使修改立即生效。
-
-- **版本控制**：内置基于 Git 的版本跟踪系统，在您保存文件时自动创建提交，让您能够：
-  - 查看每个配置文件的完整版本历史
-  - 通过差异视图比较不同版本之间的变化
-  - 一键恢复任何以前的版本
-  - 智能提交信息，使用当前光标行内容或时间戳
-
-- **文件管理**：添加自定义配置文件，置顶常用文件以便快速访问，并删除自定义文件。
-
-- **代码编辑器**：集成代码编辑器，支持多种文件类型的语法高亮。
-
-- **搜索功能**：在侧边栏中按名称或路径搜索特定配置文件，并在当前打开的文件内容中进行搜索。
-
-- **缩放控制**：调整编辑器内容的缩放级别。
-
-- **外观选项**：在**浅色**和**深色**模式之间切换。
-- **键盘快捷键**：
-  - `Cmd + F`：在编辑器中显示/隐藏搜索栏。
-  - `Cmd + S`：保存文件。
-  - `Cmd + /`：注释/取消注释选中的行。
-  - `Cmd + =` / `Cmd + +`：放大。
-  - `Cmd + -`：缩小。
-  - `Cmd + 0`：重置缩放。
-  - `Esc`：关闭搜索栏。
-- **上下文菜单操作**：在侧边栏中右键单击文件，可选择：
-  - 置顶/取消置顶
-  - 复制路径
-  - 在 Finder 中打开
-  - 在 VSCode 中打开
-  - 在 Cursor 中打开
-  - 在终端中打开
-
-- **版本历史侧边栏**：点击工具栏中的历史按钮可查看：
-  - 带时间戳的完整提交历史
-  - 显示确切更改的差异视图
-  - 一键恢复功能
-  - 基于您编辑内容的智能提交信息
-
-- **标签（Tag）功能**：可以在侧边栏中为文件添加短文本彩色标签。
-  - 在侧边栏中右键单击文件选择 `Tag` 打开标签编辑弹窗（sheet）。
-  - 编辑器为所见即所得：输入时预览宽度随文字自适应；`tag` 为空时显示为圆形颜色块。
-  - 新建标签默认颜色为红色；也可以从快捷色块选择或通过 RGBA 滑块微调颜色。
-  - 为保证可读性，标签长度有限制（中文最多 5 字，英文最多 10 字）。
-  - 点击保存会将标签保存到文件上，标签会显示在侧边栏文件名旁。
-  - 列表上双击标签可打开标签弹框。
+### 快捷键
+- `Cmd + F`：搜索
+- `Cmd + S`：保存
+- `Cmd + /`：注释切换
+- `Cmd + =` / `Cmd + -`：缩放
+- `Cmd + 0`：重置缩放
+- `Esc`：关闭搜索
 
 ## 安装
 
-要安装和运行 Configs，您需要在 macOS 机器上安装 Xcode。
+### 编译安装
+需要安装 Xcode，然后：
 
-1. **克隆仓库**：
+```bash
+git clone https://github.com/iHongRen/configEditor.git
+cd configEditor/Configs
+# 在 Xcode 中打开 Configs.xcodeproj，选择 "My Mac" 作为目标，点击 Build (⌘B)
+```
 
-   ```bash
-   git clone https://github.com/iHongRen/configEditor.git
-   cd configEditor/Configs
-   ```
+编译完成后，在 Xcode 的 Products 文件夹中找到 `Configs.app`。
 
-2. **在 Xcode 中打开**：
-   在 Xcode 中打开 `Configs.xcodeproj` 文件。
+### 直接安装
+从 [Release 页面](https://github.com/iHongRen/configEditor/releases) 下载 `Configs.dmg`，双击打开后：
 
-3. **构建应用程序**：
-   选择您的目标（例如，“My Mac”），然后单击 Xcode 中的“构建”按钮（⌘B）。`Configs.app` 将在 Xcode 项目导航器中的 `Products` 文件夹中生成。您可以右键单击 `Configs.app` 并选择“在 Finder 中显示”来找到它。
-
-4. **安装并运行**：
-   解压 [configs.zip](https://github.com/iHongRen/configEditor/releases) 后， 将 `Configs.app` 包拖到您的 `/Applications` 文件夹中。
-   打开终端并运行以下命令，使应用程序可执行：
+1. 将 `Configs.app` 拖到 `/Applications` 文件夹
+2. 打开终端，运行以下命令：
 
    ```bash
    chmod +x /Applications/Configs.app/Contents/MacOS/Configs
+   xattr -d com.apple.quarantine /Applications/Configs.app
    ```
-   现在您可以从 `/Applications` 文件夹或 Launchpad 打开应用程序。
-   
-   如果弹窗提示无法打开，打开 **系统偏好设置** > **隐私与安全性** > **安全性** > 允许以下来源的应用程序：**App Store与已知开发者** > **仍要打开**
+
+3. 现在可以从应用程序文件夹或 Launchpad 打开 `Configs.app`
+
+
