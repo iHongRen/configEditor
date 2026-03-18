@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 
 // Custom slider that only displays a track (we draw) and a circular thumb.
@@ -155,6 +156,42 @@ struct TagNameEditor: View {
     }
 }
 
+private struct GroupEditorState: Identifiable {
+    let id = UUID()
+    let groupID: String?
+    var name: String
+    let title: String
+    let actionTitle: String
+}
+
+private struct GroupDropDelegate: DropDelegate {
+    let targetGroup: ConfigGroup
+    @Binding var draggedGroupID: String?
+    let configManager: ConfigManager
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedGroupID,
+              draggedGroupID != targetGroup.id else {
+            return
+        }
+
+        configManager.moveGroup(from: draggedGroupID, to: targetGroup.id)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedGroupID = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedGroupID != nil
+    }
+}
+
 struct SidebarView: View {
     @ObservedObject var configManager: ConfigManager
     @Binding var selectedFile: ConfigFile?
@@ -175,6 +212,14 @@ struct SidebarView: View {
     @State private var tagG: Double = 59
     @State private var tagB: Double = 48
     @State private var tagA: Double = 1.0
+    @State private var tagEditorFile: ConfigFile?
+    @State private var groupEditorState: GroupEditorState?
+    @State private var pendingDeleteGroup: ConfigGroup?
+    @State private var draggedGroupID: String?
+
+    private var filteredFiles: [ConfigFile] {
+        configManager.visibleFiles(searchText: searchText)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -212,11 +257,41 @@ struct SidebarView: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.trailing, 12)
             }
+            .padding(.bottom, 4)
+
+            HStack(spacing: 8) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        groupChip(title: "全部", groupID: nil, isEditable: false)
+
+                        ForEach(configManager.groups) { group in
+                            groupChip(title: group.name, groupID: group.id, isEditable: true)
+                                .onDrag {
+                                    draggedGroupID = group.id
+                                    return NSItemProvider(object: group.id as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: GroupDropDelegate(targetGroup: group, draggedGroupID: $draggedGroupID, configManager: configManager))
+                        }
+                    }
+                    .padding(.leading, 12)
+                    .padding(.vertical, 4)
+                }
+
+                Button(action: {
+                    groupEditorState = GroupEditorState(groupID: nil, name: "", title: "新建分组", actionTitle: "创建")
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .resizable()
+                        .frame(width: 18 * globalZoomLevel, height: 18 * globalZoomLevel)
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.trailing, 12)
+                .help("添加分组")
+            }
+            .padding(.bottom, 8)
 
             List(selection: $selectedFile) {
-                let filteredFiles = configManager.configFiles.filter { file in
-                    searchText.isEmpty || file.name.localizedCaseInsensitiveContains(searchText) || file.path.localizedCaseInsensitiveContains(searchText)
-                }
                 if filteredFiles.isEmpty {
                     Text("No config files found")
                         .font(.system(size: 13 * globalZoomLevel))
@@ -240,7 +315,7 @@ struct SidebarView: View {
                                                 tagG = tag.g * 255.0
                                                 tagB = tag.b * 255.0
                                                 tagA = tag.a
-                                                contextMenuFile = file
+                                                tagEditorFile = file
                                             }
                                 } else {
                                     Text(tag.text)
@@ -258,7 +333,7 @@ struct SidebarView: View {
                                             tagG = tag.g * 255.0
                                             tagB = tag.b * 255.0
                                             tagA = tag.a
-                                            contextMenuFile = file
+                                            tagEditorFile = file
                                         }
                                 }
                             }
@@ -309,11 +384,46 @@ struct SidebarView: View {
                                     tagB = 48
                                     tagA = 1.0
                                 }
-                                contextMenuFile = file
+                                tagEditorFile = file
                             }) {
                                 HStack {
                                     Image(systemName: "tag")
                                     Text("Tag")
+                                }
+                            }
+
+                            Menu {
+                                Button(action: {
+                                    configManager.moveFile(file, to: nil)
+                                }) {
+                                    HStack {
+                                        if file.groupID == nil {
+                                            Image(systemName: "checkmark")
+                                        }
+                                        Text("全部分组")
+                                    }
+                                }
+
+                                if !configManager.groups.isEmpty {
+                                    Divider()
+                                }
+
+                                ForEach(configManager.groups) { group in
+                                    Button(action: {
+                                        configManager.moveFile(file, to: group.id)
+                                    }) {
+                                        HStack {
+                                            if file.groupID == group.id {
+                                                Image(systemName: "checkmark")
+                                            }
+                                            Text(group.name)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "folder.badge.gearshape")
+                                    Text("Move to Group")
                                 }
                             }
 
@@ -388,7 +498,7 @@ struct SidebarView: View {
                     let path = url.path
 
                     if !configManager.configFiles.contains(where: { $0.path == path }) {
-                        let newConfig = ConfigFile(name: name, path: path, isCustom: true)
+                        let newConfig = ConfigFile(name: name, path: path, isCustom: true, groupID: configManager.selectedGroupID)
                         configManager.addConfigFile(newConfig)
                         selectedFile = newConfig
                         FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
@@ -398,9 +508,18 @@ struct SidebarView: View {
                 break
             }
         }
+        .compatibleOnChange(of: searchText) { _, _ in
+            syncSelectionWithVisibleFiles()
+        }
+        .compatibleOnChange(of: configManager.selectedGroupID) { _, _ in
+            syncSelectionWithVisibleFiles()
+        }
+        .compatibleOnChange(of: configManager.configFiles) { _, _ in
+            syncSelectionWithVisibleFiles()
+        }
 
     // Tagging sheet (item-based) - improved layout
-    .sheet(item: $contextMenuFile) { target in
+    .sheet(item: $tagEditorFile) { target in
             VStack(spacing: 16) {
                 Text("Add Tag")
                     .font(.title3)
@@ -504,7 +623,7 @@ struct SidebarView: View {
                 HStack(spacing: 12) {
                     
                     // Cancel (filled but subtle)
-                    Button(action: { contextMenuFile = nil }) {
+                    Button(action: { tagEditorFile = nil }) {
                         Text("Cancel")
                             .foregroundColor(.primary)
                             .padding(.horizontal, 12)
@@ -520,7 +639,7 @@ struct SidebarView: View {
                     if target.tag != nil {
                         Button(action: {
                             configManager.setTag(nil, for: target)
-                            contextMenuFile = nil
+                            tagEditorFile = nil
                         }) {
                             Text("Delete")
                                 .foregroundColor(.white)
@@ -536,7 +655,7 @@ struct SidebarView: View {
                     Button(action: {
                         let tag = FileTag(text: tagTextInput, r: (tagR/255.0), g: (tagG/255.0), b: (tagB/255.0), a: tagA)
                         configManager.setTag(tag, for: target)
-                        contextMenuFile = nil
+                        tagEditorFile = nil
                     }) {
                         Text("Save")
                             .foregroundColor(.white)
@@ -553,6 +672,130 @@ struct SidebarView: View {
             }
             .frame(width: 280)
         }
+        .sheet(item: $groupEditorState) { state in
+            VStack(alignment: .leading, spacing: 16) {
+                Text(state.title)
+                    .font(.title3)
+
+                TextField("输入分组名称", text: Binding(
+                    get: { groupEditorState?.name ?? state.name },
+                    set: { groupEditorState?.name = $0 }
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                HStack {
+                    Spacer()
+
+                    Button("取消") {
+                        groupEditorState = nil
+                    }
+
+                    Button(state.actionTitle) {
+                        saveGroupEditor()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 320)
+        }
+        .alert("删除分组", isPresented: Binding(
+            get: { pendingDeleteGroup != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteGroup = nil
+                }
+            }
+        )) {
+            Button("取消", role: .cancel) {
+                pendingDeleteGroup = nil
+            }
+            Button("删除", role: .destructive) {
+                if let group = pendingDeleteGroup {
+                    configManager.deleteGroup(id: group.id)
+                }
+                pendingDeleteGroup = nil
+            }
+        } message: {
+            Text("删除后，该分组下的配置文件会保留，但会回到“全部分组”。")
+        }
+    }
+
+    @ViewBuilder
+    private func groupChip(title: String, groupID: String?, isEditable: Bool) -> some View {
+        let isSelected = configManager.selectedGroupID == groupID
+
+        Text(title)
+            .font(.system(size: 12 * globalZoomLevel, weight: isSelected ? .semibold : .regular))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isSelected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12))
+            .foregroundColor(isSelected ? .accentColor : .primary)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
+            .contentShape(Capsule())
+            .onTapGesture {
+                configManager.selectGroup(groupID)
+            }
+            .contextMenu {
+                if isEditable, let groupID, let group = configManager.groups.first(where: { $0.id == groupID }) {
+                    Button("编辑") {
+                        groupEditorState = GroupEditorState(groupID: group.id, name: group.name, title: "编辑分组", actionTitle: "保存")
+                    }
+
+                    Button("删除", role: .destructive) {
+                        pendingDeleteGroup = group
+                    }
+                }
+            }
+    }
+
+    private func syncSelectionWithVisibleFiles() {
+        let files = filteredFiles
+
+        if let selectedFile, files.contains(selectedFile) {
+            return
+        }
+
+        guard let firstFile = files.first else {
+            selectedFile = nil
+            fileContent = ""
+            originalFileContent = ""
+            fileSize = 0
+            fileModificationDate = nil
+            return
+        }
+
+        selectedFile = firstFile
+        FileOperations.loadAndSetFileContent(
+            file: firstFile,
+            fileContent: $fileContent,
+            originalFileContent: $originalFileContent,
+            fileSize: $fileSize,
+            fileModificationDate: $fileModificationDate
+        )
+    }
+
+    private func saveGroupEditor() {
+        guard let state = groupEditorState else {
+            return
+        }
+
+        let trimmedName = state.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return
+        }
+
+        if let groupID = state.groupID {
+            configManager.updateGroup(id: groupID, name: trimmedName)
+        } else if let group = configManager.addGroup(name: trimmedName) {
+            configManager.selectGroup(group.id)
+        }
+
+        groupEditorState = nil
     }
 }
-

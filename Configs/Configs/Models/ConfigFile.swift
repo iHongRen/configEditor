@@ -8,6 +8,31 @@
 import Foundation
 import SwiftUI
 
+struct ConfigGroup: Identifiable, Hashable {
+    let id: String
+    var name: String
+
+    init(id: String = UUID().uuidString, name: String) {
+        self.id = id
+        self.name = name
+    }
+
+    static func fromDictionary(_ dict: [String: Any]) -> ConfigGroup? {
+        guard let id = dict["id"] as? String,
+              let name = dict["name"] as? String else {
+            return nil
+        }
+        return ConfigGroup(id: id, name: name)
+    }
+
+    func toDictionary() -> [String: Any] {
+        [
+            "id": id,
+            "name": name
+        ]
+    }
+}
+
 /// Lightweight tag structure for a config file.
 /// Stores display text and RGBA components (0.0 - 1.0) so it can be persisted easily.
 struct FileTag: Hashable {
@@ -25,6 +50,7 @@ struct ConfigFile: Identifiable, Hashable {
     let isCustom: Bool
     var isPinned: Bool = false
     var tag: FileTag? = nil
+    var groupID: String? = nil
     
     static func fromDictionary(_ dict: [String: Any]) -> ConfigFile? {
         guard let name = dict["name"] as? String,
@@ -33,8 +59,9 @@ struct ConfigFile: Identifiable, Hashable {
             return nil
         }
         let isPinned = dict["isPinned"] as? Bool ?? false
+        let groupID = dict["groupID"] as? String
 
-        var file = ConfigFile(name: name, path: path, isCustom: isCustom, isPinned: isPinned)
+        var file = ConfigFile(name: name, path: path, isCustom: isCustom, isPinned: isPinned, groupID: groupID)
 
         if let tagDict = dict["tag"] as? [String: Any],
            let text = tagDict["text"] as? String,
@@ -55,6 +82,10 @@ struct ConfigFile: Identifiable, Hashable {
             "isCustom": isCustom,
             "isPinned": isPinned
         ]
+
+        if let groupID = groupID {
+            dict["groupID"] = groupID
+        }
 
         if let tag = tag {
             dict["tag"] = [

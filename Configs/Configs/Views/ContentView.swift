@@ -35,7 +35,26 @@ struct ContentView: View {
     @State private var contextMenuFile: ConfigFile?
     @State private var showDeleteAlert = false
     @State private var showHistorySidebar = false
-    
+
+    private func loadSelectedFile(_ file: ConfigFile?) {
+        selectedFile = file
+
+        guard let file else {
+            fileContent = ""
+            originalFileContent = ""
+            fileSize = 0
+            fileModificationDate = nil
+            return
+        }
+
+        FileOperations.loadAndSetFileContent(
+            file: file,
+            fileContent: $fileContent,
+            originalFileContent: $originalFileContent,
+            fileSize: $fileSize,
+            fileModificationDate: $fileModificationDate
+        )
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -114,10 +133,7 @@ struct ContentView: View {
         .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
         .onAppear {
             configManager.sortConfigFiles()
-            if let first = configManager.configFiles.first {
-                selectedFile = first
-                FileOperations.loadAndSetFileContent(file: first, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
-            }
+            loadSelectedFile(configManager.visibleFiles(searchText: searchText).first)
         }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
             switch result {
@@ -127,14 +143,13 @@ struct ContentView: View {
                     let path = url.path
                  
                     if !configManager.configFiles.contains(where: { $0.path == path }) {
-                        let newConfig = ConfigFile(name: name, path: path, isCustom: true)
+                        let newConfig = ConfigFile(name: name, path: path, isCustom: true, groupID: configManager.selectedGroupID)
                         configManager.addConfigFile(newConfig)
                         // Close history sidebar when switching to a new file
                         if showHistorySidebar {
                             showHistorySidebar = false
                         }
-                        selectedFile = newConfig
-                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
+                        loadSelectedFile(newConfig)
                     }
                 }
             default:
@@ -162,16 +177,8 @@ struct ContentView: View {
                         if showHistorySidebar {
                             showHistorySidebar = false
                         }
-                        
-                        selectedFile = configManager.configFiles.first
-                        if let newSelectedFile = selectedFile {
-                            FileOperations.loadAndSetFileContent(file: newSelectedFile, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
-                        } else {
-                            fileContent = ""
-                            originalFileContent = ""
-                            fileSize = 0
-                            fileModificationDate = nil
-                        }
+
+                        loadSelectedFile(configManager.visibleFiles(searchText: searchText).first)
                     }
                 }
             }
