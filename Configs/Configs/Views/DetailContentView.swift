@@ -6,7 +6,65 @@
 //
 
 import SwiftUI
+import Combine
 
+extension View {
+    @ViewBuilder
+    func compatibleOnChange<V>(
+        of value: V,
+        initial: Bool = false,
+        _ action: @escaping (_ oldValue: V, _ newValue: V) -> Void
+    ) -> some View where V: Equatable {
+        if #available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *) {
+            self.onChange(of: value, initial: initial, action)
+        } else {
+            self
+                .modifier(
+                    ValueChangeModifier(
+                        value: value,
+                        initial: initial,
+                        action: action
+                    )
+                )
+        }
+    }
+    
+    @ViewBuilder
+    func compatibleOnChange<V>(
+        of value: V,
+        initial: Bool = false,
+        _ action: @escaping () -> Void
+    ) -> some View where V: Equatable {
+        self.compatibleOnChange(of: value, initial: initial) { _, _ in
+            action()
+        }
+    }
+}
+
+private struct ValueChangeModifier<V: Equatable>: ViewModifier {
+    let value: V
+    let initial: Bool
+    let action: (V, V) -> Void
+    
+    @State private var oldValue: V?
+    
+    func body(content: Content) -> some View {
+        content
+            .onReceive(Just(value)) { newValue in
+                if let oldValue = oldValue {
+                    if oldValue != newValue {
+                        action(oldValue, newValue)
+                        self.oldValue = newValue
+                    }
+                } else {
+                    self.oldValue = newValue
+                    if initial {
+                        action(newValue, newValue)
+                    }
+                }
+            }
+    }
+}
 
 struct DetailContentView: View {
     @Binding var fileContent: String
@@ -37,9 +95,10 @@ struct DetailContentView: View {
                         .onSubmit {
                             editorViewRef?.findNext(editorSearchText)
                         }
-                        .onChange(of: editorSearchText) {
+                        .compatibleOnChange(of: editorSearchText, {
                             editorViewRef?.findNext(editorSearchText)
-                        }
+                        })
+
                     Button(action: {
                         editorViewRef?.findNext(editorSearchText)
                     }) {

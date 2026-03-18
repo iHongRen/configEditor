@@ -179,7 +179,7 @@ struct ContentView: View {
             Text("Are you sure you want to remove this config file from the list?")
         }
         .preferredColorScheme(colorSchemeOption.colorScheme)
-        .onChange(of: selectedFile) { oldFile, newFile in
+        .compatibleOnChange(of: selectedFile) { oldFile, newFile in
             // Close history sidebar when switching to a different file
             if showHistorySidebar {
                 showHistorySidebar = false

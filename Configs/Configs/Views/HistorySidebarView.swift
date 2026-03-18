@@ -38,10 +38,10 @@ struct HistorySidebarView: View {
         .onAppear {
             loadCommits()
         }
-        .onChange(of: configPath) { _, _ in
+        .compatibleOnChange(of: configPath) { _, _ in
             loadCommits()
         }
-        .onChange(of: selectedCommit) { _, newCommit in
+        .compatibleOnChange(of: selectedCommit) { _, newCommit in
             guard let commit = newCommit else {
                 selectedCommitContent = nil
                 selectedCommitDiff = nil
@@ -542,7 +542,6 @@ struct HistorySidebarView: View {
         pasteboard.clearContents()
         pasteboard.setString(diff, forType: .string)
         
-        // 显示复制成功的提示
         showCopySuccess("Diff copied to clipboard")
     }
     
@@ -551,18 +550,14 @@ struct HistorySidebarView: View {
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
         
-        // 显示复制成功的提示
         showCopySuccess("Content copied to clipboard")
     }
     
     private func showCopySuccess(_ message: String) {
-        // 这里可以添加一个临时的成功提示
-        // 由于这是一个简单的实现，我们暂时使用 print
         print(message)
     }
     
     private func showRestoreSuccess() {
-        // 这里可以添加一个临时的成功提示
         print("Version restored successfully")
     }
 }
