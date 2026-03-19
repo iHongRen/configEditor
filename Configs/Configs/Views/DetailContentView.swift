@@ -84,85 +84,87 @@ struct DetailContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if showEditorSearchBar {
-                HStack {
-                    TextField("Search content...", text: $editorSearchText)
-                        .frame(width: 200 * globalZoomLevel)
-                        .disableAutocorrection(true)
-                        .help("Search in current file (Press Enter for next)")
-                        .focused($searchFieldFocused)
-                        .font(.system(size: 13 * globalZoomLevel))
-                        .onSubmit {
+            if let selectedFile {
+                if showEditorSearchBar {
+                    HStack {
+                        TextField("Search content...", text: $editorSearchText)
+                            .frame(width: 200 * globalZoomLevel)
+                            .disableAutocorrection(true)
+                            .help("Search in current file (Press Enter for next)")
+                            .focused($searchFieldFocused)
+                            .font(.system(size: 13 * globalZoomLevel))
+                            .onSubmit {
+                                editorViewRef?.findNext(editorSearchText)
+                            }
+                            .compatibleOnChange(of: editorSearchText, {
+                                editorViewRef?.findNext(editorSearchText)
+                            })
+
+                        Button(action: {
                             editorViewRef?.findNext(editorSearchText)
+                        }) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 13 * globalZoomLevel))
                         }
-                        .compatibleOnChange(of: editorSearchText, {
-                            editorViewRef?.findNext(editorSearchText)
-                        })
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Find next")
+                        Button(action: {
+                            editorViewRef?.findPrevious(editorSearchText)
+                        }) {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 13 * globalZoomLevel))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Find previous")
 
-                    Button(action: {
-                        editorViewRef?.findNext(editorSearchText)
-                    }) {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13 * globalZoomLevel))
+                        Text("\(editorCurrentMatchIndex) of \(editorMatchCount)")
+                            .font(.system(size: 11 * globalZoomLevel))
+                            .foregroundColor(.secondary)
+
+                        Button(action: {
+                            showEditorSearchBar = false
+                            editorSearchText = ""
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 13 * globalZoomLevel))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Close search")
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Find next")
-                    Button(action: {
-                        editorViewRef?.findPrevious(editorSearchText)
-                    }) {
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 13 * globalZoomLevel))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Find previous")
-                   
-                    Text("\(editorCurrentMatchIndex) of \(editorMatchCount)")
-                        .font(.system(size: 11 * globalZoomLevel))
-                        .foregroundColor(.secondary)
-                    
-                    Button(action: {
-                        showEditorSearchBar = false
-                        editorSearchText = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13 * globalZoomLevel))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Close search")
+                    .padding(.all, 5 * globalZoomLevel)
                 }
-                .padding(.all, 5 * globalZoomLevel)
-            }
-           
-            CodeEditorView(text: $fileContent,
-                       fileExtension: LanguageDetector.detectLanguage(selectedFile?.name),
-                       search: $editorSearchText,
-                       ref: $editorViewRef,
-                       isFocused: !searchFieldFocused,
-                       showSearchBar: {
-                           showEditorSearchBar = true
-                           DispatchQueue.main.async {
-                               searchFieldFocused = true
-                           }
-                       },
 
-                       onSaveWithCursorLine: { cursorLine in
-                           if let file = selectedFile {
+                CodeEditorView(text: $fileContent,
+                           fileExtension: LanguageDetector.detectLanguage(selectedFile.name),
+                           search: $editorSearchText,
+                           ref: $editorViewRef,
+                           isFocused: !searchFieldFocused,
+                           showSearchBar: {
+                               showEditorSearchBar = true
+                               DispatchQueue.main.async {
+                                   searchFieldFocused = true
+                               }
+                           },
+
+                           onSaveWithCursorLine: { cursorLine in
                                FileOperations.saveFileContentWithVersioning(
-                                   file: file, 
-                                   content: fileContent, 
-                                   originalContent: originalFileContent, 
+                                   file: selectedFile,
+                                   content: fileContent,
+                                   originalContent: originalFileContent,
                                    cursorLine: cursorLine,
                                    onSaveSuccess: { newDate, newContent in
                                        self.fileModificationDate = newDate
-                                       self.originalFileContent = newContent // Update original content after successful save
+                                       self.originalFileContent = newContent
                                    }
                                )
-                           }
-                       },
-                       zoomLevel: globalZoomLevel,
-                       matchCount: $editorMatchCount,
-                       currentMatchIndex: $editorCurrentMatchIndex)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                           },
+                           zoomLevel: globalZoomLevel,
+                           matchCount: $editorMatchCount,
+                           currentMatchIndex: $editorCurrentMatchIndex)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                emptyPlaceholder
+            }
            
             Divider()
             HStack(spacing: 8 * globalZoomLevel) {
@@ -214,5 +216,40 @@ struct DetailContentView: View {
                 }
             }
         }
+    }
+
+    private var emptyPlaceholder: some View {
+        VStack(spacing: 18 * globalZoomLevel) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24 * globalZoomLevel, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.accentColor.opacity(0.16),
+                                Color.accentColor.opacity(0.06)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 130 * globalZoomLevel, height: 130 * globalZoomLevel)
+
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 48 * globalZoomLevel, weight: .medium))
+                    .foregroundColor(.accentColor)
+            }
+
+            VStack(spacing: 8 * globalZoomLevel) {
+                Text("当前分组还没有配置文件")
+                    .font(.system(size: 22 * globalZoomLevel, weight: .semibold))
+
+                Text("从左侧添加配置文件，或把已有配置文件移动到这个分组。")
+                    .font(.system(size: 13 * globalZoomLevel))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 32 * globalZoomLevel)
     }
 }

@@ -9,6 +9,82 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+private struct GroupDropDelegate: DropDelegate {
+    let targetGroup: ConfigGroup
+    @Binding var draggedGroupID: String?
+    @Binding var dropTargetGroupID: String?
+    let configManager: ConfigManager
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedGroupID,
+              draggedGroupID != targetGroup.id else {
+            return
+        }
+
+        dropTargetGroupID = targetGroup.id
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.84)) {
+            configManager.moveGroup(from: draggedGroupID, to: targetGroup.id)
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedGroupID = nil
+        dropTargetGroupID = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedGroupID != nil
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetGroupID == targetGroup.id {
+            dropTargetGroupID = nil
+        }
+    }
+}
+
+private struct GroupTrailingDropDelegate: DropDelegate {
+    @Binding var draggedGroupID: String?
+    @Binding var dropTargetGroupID: String?
+    let configManager: ConfigManager
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedGroupID else {
+            return
+        }
+
+        dropTargetGroupID = "end-of-groups"
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.84)) {
+            configManager.moveGroupToEnd(draggedGroupID)
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedGroupID = nil
+        dropTargetGroupID = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedGroupID != nil
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetGroupID == "end-of-groups" {
+            dropTargetGroupID = nil
+        }
+    }
+}
+
 
 // Custom slider that only displays a track (we draw) and a circular thumb.
 // - value: bound Double
@@ -164,34 +240,6 @@ private struct GroupEditorState: Identifiable {
     let actionTitle: String
 }
 
-private struct GroupDropDelegate: DropDelegate {
-    let targetGroup: ConfigGroup
-    @Binding var draggedGroupID: String?
-    let configManager: ConfigManager
-
-    func dropEntered(info: DropInfo) {
-        guard let draggedGroupID,
-              draggedGroupID != targetGroup.id else {
-            return
-        }
-
-        configManager.moveGroup(from: draggedGroupID, to: targetGroup.id)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggedGroupID = nil
-        return true
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggedGroupID != nil
-    }
-}
-
 struct SidebarView: View {
     @ObservedObject var configManager: ConfigManager
     @Binding var selectedFile: ConfigFile?
@@ -216,6 +264,7 @@ struct SidebarView: View {
     @State private var groupEditorState: GroupEditorState?
     @State private var pendingDeleteGroup: ConfigGroup?
     @State private var draggedGroupID: String?
+    @State private var dropTargetGroupID: String?
 
     private var filteredFiles: [ConfigFile] {
         configManager.visibleFiles(searchText: searchText)
@@ -260,22 +309,72 @@ struct SidebarView: View {
             .padding(.bottom, 4)
 
             HStack(spacing: 8) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        groupChip(title: "全部", groupID: nil, isEditable: false)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            groupChip(title: "全部", groupID: nil, isEditable: false)
+                                .id("all-groups")
 
-                        ForEach(configManager.groups) { group in
-                            groupChip(title: group.name, groupID: group.id, isEditable: true)
-                                .onDrag {
-                                    draggedGroupID = group.id
-                                    return NSItemProvider(object: group.id as NSString)
-                                }
-                                .onDrop(of: [.text], delegate: GroupDropDelegate(targetGroup: group, draggedGroupID: $draggedGroupID, configManager: configManager))
+                            ForEach(configManager.groups) { group in
+                                groupChip(title: group.name, groupID: group.id, isEditable: true)
+                                    .id(group.id)
+                                    .onDrop(
+                                        of: [UTType.text],
+                                        delegate: GroupDropDelegate(
+                                            targetGroup: group,
+                                            draggedGroupID: $draggedGroupID,
+                                            dropTargetGroupID: $dropTargetGroupID,
+                                            configManager: configManager
+                                        )
+                                    )
+                            }
+
+                            if draggedGroupID != nil {
+                                Capsule()
+                                    .fill(dropTargetGroupID == "end-of-groups" ? Color.accentColor.opacity(0.22) : Color.secondary.opacity(0.08))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(
+                                                dropTargetGroupID == "end-of-groups" ? Color.accentColor.opacity(0.75) : Color.secondary.opacity(0.18),
+                                                style: StrokeStyle(lineWidth: 1.2, dash: [4, 4])
+                                            )
+                                    )
+                                    .frame(width: 44 * globalZoomLevel, height: 34 * globalZoomLevel)
+                                    .overlay(
+                                        Image(systemName: "arrow.right")
+                                            .font(.system(size: 12 * globalZoomLevel, weight: .semibold))
+                                            .foregroundColor(dropTargetGroupID == "end-of-groups" ? .accentColor : .secondary)
+                                    )
+                                    .onDrop(
+                                        of: [UTType.text],
+                                        delegate: GroupTrailingDropDelegate(
+                                            draggedGroupID: $draggedGroupID,
+                                            dropTargetGroupID: $dropTargetGroupID,
+                                            configManager: configManager
+                                        )
+                                    )
+                                    .transition(.opacity.combined(with: .scale))
+                            }
                         }
+                        .padding(.leading, 4)
+                        .padding(.trailing, 6)
+                        .padding(.vertical, 4)
+                        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: configManager.groups)
+                        .animation(.spring(response: 0.22, dampingFraction: 0.86), value: draggedGroupID)
+                        .animation(.spring(response: 0.22, dampingFraction: 0.86), value: dropTargetGroupID)
                     }
-                    .padding(.leading, 12)
-                    .padding(.vertical, 4)
+                    .onAppear {
+                        scrollSelectedGroupIntoView(using: proxy, animated: false)
+                    }
+                    .compatibleOnChange(of: configManager.selectedGroupID) { _, _ in
+                        scrollSelectedGroupIntoView(using: proxy)
+                    }
+                    .compatibleOnChange(of: configManager.groups) { _, _ in
+                        scrollSelectedGroupIntoView(using: proxy)
+                    }
                 }
+                .padding(.leading, 12)
+                .padding(.vertical, 4)
 
                 Button(action: {
                     groupEditorState = GroupEditorState(groupID: nil, name: "", title: "新建分组", actionTitle: "创建")
@@ -345,7 +444,7 @@ struct SidebarView: View {
                             }
                         }
                         .help(file.path)
-                        .padding(.vertical, 4 * globalZoomLevel)
+                        .padding(.vertical, 5 * globalZoomLevel)
                         .padding(.horizontal, 8 * globalZoomLevel)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
@@ -567,55 +666,6 @@ struct SidebarView: View {
                     }
                 }
 
-                // Color sliders: each occupies a row; slider track shows the channel gradient based on current color
-                VStack(alignment: .leading, spacing: 10) {
-                    // compute dynamic gradient endpoints for each channel so the track reflects combined color
-                    let start = Color(red: 1, green: 1, blue: 1)
-                    let rEnd = Color(red: 1, green: 0, blue: 0)
-
-                    HStack(alignment: .center) {
-                        Text("R: \(Int(tagR))")
-                            .frame(width: 52, alignment: .leading)
-                        ZStack(alignment: .leading) {
-                          
-                            ColorSlider(value: $tagR, range: 0...255, gradient: LinearGradient(gradient: Gradient(colors: [start, rEnd]), startPoint: .leading, endPoint: .trailing))
-                        }
-                    }
-
-                    let gEnd = Color(red: 0, green: 1, blue: 0)
-                    HStack(alignment: .center) {
-                        Text("G: \(Int(tagG))")
-                            .frame(width: 52, alignment: .leading)
-                        ZStack(alignment: .leading) {
-                           
-                            ColorSlider(value: $tagG, range: 0...255, gradient: LinearGradient(gradient: Gradient(colors: [start, gEnd]), startPoint: .leading, endPoint: .trailing))
-                        }
-                    }
-
-                    let bEnd = Color(red: 0, green:0, blue: 1)
-                    HStack(alignment: .center) {
-                        Text("B: \(Int(tagB))")
-                            .frame(width: 52, alignment: .leading)
-                        ZStack(alignment: .leading) {
-                         
-                            ColorSlider(value: $tagB, range: 0...255, gradient: LinearGradient(gradient: Gradient(colors: [start, bEnd]), startPoint: .leading, endPoint: .trailing))
-                        }
-                    }
-
-                    // Alpha row: keep label on the left, numeric value next, slider fills remaining space
-                    HStack(alignment: .center) {
-                     
-                        Text(String(format: "A: %.2f", tagA))
-                            .frame(width: 52, alignment: .leading)
-
-                        ZStack(alignment: .leading) {
-                            let curColor = Color(red: tagR/255.0, green: tagG/255.0, blue: tagB/255.0)
-                            ColorSlider(value: $tagA, range: 0...1, gradient: LinearGradient(gradient: Gradient(colors: [curColor.opacity(0.1), curColor]), startPoint: .leading, endPoint: .trailing))
-                        }
-                    }
-                }
-                .padding(.horizontal)
-
                 Spacer()
            
                 
@@ -723,23 +773,40 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func groupChip(title: String, groupID: String?, isEditable: Bool) -> some View {
-        let isSelected = configManager.selectedGroupID == groupID
+        let isSelected = selectedGroupChipID == (groupID ?? "all-groups")
+        let chipID = groupID ?? "all-groups"
+        let isDragged = groupID != nil && draggedGroupID == groupID
+        let isDropTarget = groupID != nil && dropTargetGroupID == groupID
 
         Text(title)
             .font(.system(size: 12 * globalZoomLevel, weight: isSelected ? .semibold : .regular))
             .lineLimit(1)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(isSelected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12))
+            .background(backgroundColor(isSelected: isSelected, isDropTarget: isDropTarget))
             .foregroundColor(isSelected ? .accentColor : .primary)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                    .stroke(borderColor(isSelected: isSelected, isDropTarget: isDropTarget), lineWidth: isDropTarget ? 1.4 : 1)
             )
             .contentShape(Capsule())
+            .scaleEffect(isDragged ? 1.06 : (isDropTarget ? 1.03 : 1.0))
+            .opacity(isDragged ? 0.72 : 1.0)
+            .shadow(color: shadowColor(isDragged: isDragged, isDropTarget: isDropTarget), radius: isDragged ? 10 : 5, x: 0, y: isDragged ? 6 : 3)
+            .padding(.vertical, 2)
             .onTapGesture {
                 configManager.selectGroup(groupID)
+            }
+            .onDrag {
+                guard isEditable else {
+                    return NSItemProvider()
+                }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    draggedGroupID = groupID
+                    dropTargetGroupID = nil
+                }
+                return NSItemProvider(object: chipID as NSString)
             }
             .contextMenu {
                 if isEditable, let groupID, let group = configManager.groups.first(where: { $0.id == groupID }) {
@@ -752,6 +819,8 @@ struct SidebarView: View {
                     }
                 }
             }
+            .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isDragged)
+            .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isDropTarget)
     }
 
     private func syncSelectionWithVisibleFiles() {
@@ -797,5 +866,52 @@ struct SidebarView: View {
         }
 
         groupEditorState = nil
+    }
+
+    private func scrollSelectedGroupIntoView(using proxy: ScrollViewProxy, animated: Bool = true) {
+        let targetID = selectedGroupChipID
+        DispatchQueue.main.async {
+            if animated {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    proxy.scrollTo(targetID, anchor: .center)
+                }
+            } else {
+                proxy.scrollTo(targetID, anchor: .center)
+            }
+        }
+    }
+
+    private var selectedGroupChipID: String {
+        configManager.selectedGroupID ?? "all-groups"
+    }
+
+    private func backgroundColor(isSelected: Bool, isDropTarget: Bool) -> Color {
+        if isDropTarget {
+            return Color.accentColor.opacity(0.26)
+        }
+        if isSelected {
+            return Color.accentColor.opacity(0.18)
+        }
+        return Color.secondary.opacity(0.12)
+    }
+
+    private func borderColor(isSelected: Bool, isDropTarget: Bool) -> Color {
+        if isDropTarget {
+            return Color.accentColor.opacity(0.72)
+        }
+        if isSelected {
+            return Color.accentColor.opacity(0.4)
+        }
+        return Color.clear
+    }
+
+    private func shadowColor(isDragged: Bool, isDropTarget: Bool) -> Color {
+        if isDragged {
+            return Color.black.opacity(0.18)
+        }
+        if isDropTarget {
+            return Color.accentColor.opacity(0.2)
+        }
+        return Color.clear
     }
 }

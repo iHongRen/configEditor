@@ -171,6 +171,16 @@ class ConfigManager: ObservableObject {
         saveGroups()
     }
 
+    func moveGroupToEnd(_ sourceID: String) {
+        guard let sourceIndex = groups.firstIndex(where: { $0.id == sourceID }) else {
+            return
+        }
+
+        let movingGroup = groups.remove(at: sourceIndex)
+        groups.append(movingGroup)
+        saveGroups()
+    }
+
     func togglePin(for file: ConfigFile) {
         if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
             configFiles[index].isPinned.toggle()
