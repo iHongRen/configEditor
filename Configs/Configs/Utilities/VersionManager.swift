@@ -237,4 +237,12 @@ class VersionManager {
         }
         return diffResult.output
     }
+
+    func getGitProjectRoot(for configPath: String) -> URL? {
+        let repositoryURL = getRepositoryURL(for: configPath)
+        guard fileManager.fileExists(atPath: repositoryURL.path) else {
+            return nil
+        }
+        return repositoryURL
+    }
 }

@@ -105,6 +105,7 @@ enum L10n {
         "no.config.files.found": [.english: "No config files found", .chinese: "未找到配置文件"],
         "no.version.history": [.english: "No Version History", .chinese: "暂无版本历史"],
         "open.github.repository": [.english: "Open GitHub repository", .chinese: "打开 GitHub 仓库"],
+        "open.git.project.in.finder": [.english: "Open Git project in Finder", .chinese: "在 Finder 中打开 Git 项目"],
         "open.in.cursor": [.english: "Open in Cursor", .chinese: "在 Cursor 中打开"],
         "open.in.finder": [.english: "Open in Finder", .chinese: "在 Finder 中打开"],
         "open.in.terminal": [.english: "Open in Terminal", .chinese: "在终端中打开"],

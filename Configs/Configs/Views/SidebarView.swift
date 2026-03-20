@@ -491,7 +491,7 @@ struct SidebarView: View {
                         .padding(.horizontal, 8 * globalZoomLevel)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
-                            (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.1) : Color.clear)
+                            (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.05) : Color.clear)
                         )
                         .cornerRadius(6)
                         .tag(file as ConfigFile?)

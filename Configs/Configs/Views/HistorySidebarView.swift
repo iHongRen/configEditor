@@ -369,6 +369,26 @@ struct HistorySidebarView: View {
                     Spacer()
                     
                     HStack(spacing: 12) {
+                        Button(action: {
+                            openGitProjectInFinder()
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
+                                Text(L10n.language == .chinese ? "Git 项目" : "Git Project")
+                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
+                            }
+                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.accentColor.opacity(0.12))
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help(L10n.tr("open.git.project.in.finder"))
+
                         // Restore button
                         Button(action: {
                             if !isRestoring {
@@ -560,5 +580,12 @@ struct HistorySidebarView: View {
     
     private func showRestoreSuccess() {
         print(L10n.tr("version.restored.successfully"))
+    }
+
+    private func openGitProjectInFinder() {
+        guard let projectRootURL = VersionManager.shared.getGitProjectRoot(for: configPath) else {
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([projectRootURL])
     }
 }
