@@ -6,11 +6,9 @@ A **macOS** config file manager that lets you quickly view, edit, and manage con
 
 ## Screenshots
 
-![](./screenshots/light.png)
+![](./screenshots/preview.png)
 
-![](./screenshots/dark.png)
 
-![](./screenshots/tag.png)
 
 ## Features
 
@@ -21,7 +19,8 @@ A **macOS** config file manager that lets you quickly view, edit, and manage con
 - **Code Editor**: Syntax highlighting for multiple file types, search, zoom, and dark mode support
 - **Context Menu**: Right-click files to quickly open in Finder, Terminal, VSCode, and more
 - **Color Tags**: Add short colored text tags to files for easy organization
-
+- **Localization**: Built-in Chinese and English support, defaults to the system language, and can be changed manually from the About page
+- 
 ### Keyboard Shortcuts
 - `Cmd + F`: Search
 - `Cmd + S`: Save
@@ -44,13 +43,12 @@ cd configEditor/Configs
 After building, find `Configs.app` in Xcode's Products folder.
 
 ### Direct Installation
-Download `Configs.dmg` from the [Release page](https://github.com/iHongRen/configEditor/releases) and double-click to open:
+Download [Configs.dmg](https://github.com/iHongRen/configEditor/releases) and double-click to open:
 
 1. Drag `Configs.app` to your `/Applications` folder
 2. Open Terminal and run:
 
    ```bash
-   chmod +x /Applications/Configs.app/Contents/MacOS/Configs
    xattr -d com.apple.quarantine /Applications/Configs.app
    ```
 
