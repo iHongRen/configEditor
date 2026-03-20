@@ -12,6 +12,7 @@ import Foundation
 struct ContentView: View {
 
     @StateObject private var configManager = ConfigManager()
+    @ObservedObject private var localization = LocalizationSettings.shared
     @State private var selectedFile: ConfigFile?
     @State private var fileContent: String = ""
     @State private var originalFileContent: String = "" // Track original content for change detection
@@ -114,7 +115,7 @@ struct ContentView: View {
                                         file: file,
                                         content: restoredContent,
                                         originalContent: restoredContent, // Use the restored content as original
-                                        cursorLine: "Restored from version \(commitHash.prefix(7))",
+                                        cursorLine: "\(L10n.tr("restore")) \(commitHash.prefix(7))",
                                         onSaveSuccess: { newDate, newContent in
                                             DispatchQueue.main.async {
                                                 self.fileModificationDate = newDate
@@ -167,9 +168,9 @@ struct ContentView: View {
             selectedFile: $selectedFile,
             fileModificationDate: $fileModificationDate
         )
-        .alert("Delete Config File", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+        .alert(L10n.tr("delete.config.file"), isPresented: $showDeleteAlert) {
+            Button(L10n.tr("cancel"), role: .cancel) { }
+            Button(L10n.tr("delete"), role: .destructive) {
                 if let file = contextMenuFile {
                     configManager.deleteConfigFile(file)
                     if selectedFile?.id == file.id {
@@ -183,7 +184,7 @@ struct ContentView: View {
                 }
             }
         } message: {
-            Text("Are you sure you want to remove this config file from the list?")
+            Text(L10n.tr("are.you.sure.remove.config.file"))
         }
         .preferredColorScheme(colorSchemeOption.colorScheme)
         .compatibleOnChange(of: selectedFile) { oldFile, newFile in

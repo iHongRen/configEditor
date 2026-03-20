@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 
 struct HistorySidebarView: View {
+    @ObservedObject private var localization = LocalizationSettings.shared
     let configPath: String
     @Binding var showHistorySidebar: Bool
     let globalZoomLevel: Double
@@ -49,9 +50,9 @@ struct HistorySidebarView: View {
             }
             loadCommitDetails(commit)
         }
-        .alert("Restore Version", isPresented: $showRestoreConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Restore", role: .destructive) {
+        .alert(L10n.tr("restore.version"), isPresented: $showRestoreConfirmation) {
+            Button(L10n.tr("cancel"), role: .cancel) { }
+            Button(L10n.tr("restore"), role: .destructive) {
                 if let content = selectedCommitContent, let commit = selectedCommit, !isRestoring {
                     isRestoring = true
                     
@@ -67,7 +68,7 @@ struct HistorySidebarView: View {
             }
         } message: {
             if let commit = selectedCommit {
-                Text("Are you sure you want to restore to version \(commit.hash.prefix(7))? This will replace the current content in the editor.")
+                Text(L10n.tr("restore.version.message", String(commit.hash.prefix(7))))
             }
         }
     }
@@ -92,11 +93,11 @@ struct HistorySidebarView: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Version History")
+                Text(L10n.tr("version.history"))
                     .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
                 
-                Text("\(commits.count) commits available")
+                Text(L10n.tr("version.count", commits.count))
                     .font(.system(size: 11 * globalZoomLevel, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -117,7 +118,7 @@ struct HistorySidebarView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
-            .help("Close history")
+            .help(L10n.tr("close.history"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
@@ -160,11 +161,11 @@ struct HistorySidebarView: View {
                     }
                     
                     VStack(spacing: 6) {
-                        Text("No Version History")
+                        Text(L10n.tr("no.version.history"))
                             .font(.system(size: 15 * globalZoomLevel, weight: .semibold))
                             .foregroundColor(.primary)
                         
-                        Text("Changes will appear here once you start editing")
+                        Text(L10n.tr("changes.will.appear.here"))
                             .font(.system(size: 12 * globalZoomLevel))
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -349,7 +350,7 @@ struct HistorySidebarView: View {
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help("Copy content to clipboard")
+                        .help(L10n.tr("copy.content.to.clipboard"))
                         .onHover { isHovering in
                             DispatchQueue.main.async {
                                 if isHovering {
@@ -360,7 +361,7 @@ struct HistorySidebarView: View {
                             }
                         }
                         
-                        Text("Changes")
+                        Text(L10n.tr("changes"))
                             .font(.system(size: 13 * globalZoomLevel, weight: .semibold))
                             .foregroundColor(.primary)
                     }
@@ -383,7 +384,7 @@ struct HistorySidebarView: View {
                                     Image(systemName: "arrow.counterclockwise")
                                         .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
                                 }
-                                Text(isRestoring ? "Restoring..." : "Restore")
+                                Text(isRestoring ? L10n.tr("restoring") : L10n.tr("restore"))
                                     .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
                             }
                             .foregroundColor(.white)
@@ -405,7 +406,7 @@ struct HistorySidebarView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         .disabled(isRestoring)
-                        .help(isRestoring ? "Restoring version..." : "Restore this version to the editor")
+                        .help(isRestoring ? L10n.tr("restoring.version") : L10n.tr("restore.this.version"))
                         .onHover { isHovering in
                             DispatchQueue.main.async {
                                 if isHovering && !isRestoring {
@@ -439,7 +440,7 @@ struct HistorySidebarView: View {
                         ProgressView()
                             .scaleEffect(0.8)
                         
-                        Text("Loading changes...")
+                        Text(L10n.tr("loading.changes"))
                             .font(.system(size: 13 * globalZoomLevel, weight: .medium))
                             .foregroundColor(.secondary)
                         
@@ -450,7 +451,7 @@ struct HistorySidebarView: View {
                     VStack(spacing: 16) {
                         Spacer()
                         
-                        Text("No changes to display")
+                        Text(L10n.tr("no.changes.display"))
                             .font(.system(size: 13 * globalZoomLevel, weight: .medium))
                             .foregroundColor(.secondary)
                         
@@ -484,11 +485,11 @@ struct HistorySidebarView: View {
             }
             
             VStack(spacing: 10) {
-                Text("Select a Commit")
+                Text(L10n.tr("select.a.commit"))
                     .font(.system(size: 16 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
                 
-                Text("Choose a commit from the timeline above to view its changes and restore previous versions")
+                Text(L10n.tr("select.commit.description"))
                     .font(.system(size: 12 * globalZoomLevel))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -542,7 +543,7 @@ struct HistorySidebarView: View {
         pasteboard.clearContents()
         pasteboard.setString(diff, forType: .string)
         
-        showCopySuccess("Diff copied to clipboard")
+        showCopySuccess(L10n.tr("copy.diff.to.clipboard"))
     }
     
     private func copyContentToClipboard(_ content: String) {
@@ -550,7 +551,7 @@ struct HistorySidebarView: View {
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
         
-        showCopySuccess("Content copied to clipboard")
+        showCopySuccess(L10n.tr("copy.content.copied"))
     }
     
     private func showCopySuccess(_ message: String) {
@@ -558,7 +559,6 @@ struct HistorySidebarView: View {
     }
     
     private func showRestoreSuccess() {
-        print("Version restored successfully")
+        print(L10n.tr("version.restored.successfully"))
     }
 }
-

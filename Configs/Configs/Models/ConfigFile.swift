@@ -51,6 +51,19 @@ struct ConfigFile: Identifiable, Hashable {
     var isPinned: Bool = false
     var tag: FileTag? = nil
     var groupID: String? = nil
+
+    var parentDirectoryName: String? {
+        let homeURL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).standardizedFileURL
+        let fileURL = URL(fileURLWithPath: path).standardizedFileURL
+        let parentURL = fileURL.deletingLastPathComponent()
+
+        guard parentURL != homeURL else {
+            return nil
+        }
+
+        let directoryName = parentURL.lastPathComponent
+        return directoryName.isEmpty ? nil : directoryName
+    }
     
     static func fromDictionary(_ dict: [String: Any]) -> ConfigFile? {
         guard let name = dict["name"] as? String,

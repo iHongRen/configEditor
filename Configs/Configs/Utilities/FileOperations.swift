@@ -27,7 +27,7 @@ struct FileOperations {
             }
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Error"
+            alert.messageText = L10n.tr("error")
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }
@@ -53,7 +53,7 @@ struct FileOperations {
             }
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Error"
+            alert.messageText = L10n.tr("error")
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }
@@ -62,7 +62,7 @@ struct FileOperations {
     
     
     static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
-        fileContent.wrappedValue = "Loading content..."
+        fileContent.wrappedValue = L10n.tr("loading.content")
         Task {
             var content: String = ""
             var currentFileSize: Int64 = 0
@@ -70,6 +70,15 @@ struct FileOperations {
             let url = URL(fileURLWithPath: file.path)
             do {
                 let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+                if let type = attributes[.type] as? FileAttributeType, type == .typeDirectory {
+                    content = L10n.tr("directory.item.message")
+                    await MainActor.run { [content] in
+                        fileContent.wrappedValue = content
+                        fileSize.wrappedValue = 0
+                        fileModificationDate.wrappedValue = nil
+                    }
+                    return
+                }
                 currentFileSize = attributes[.size] as? Int64 ?? 0
                 currentFileModificationDate = attributes[.modificationDate] as? Date
                 
@@ -81,10 +90,10 @@ struct FileOperations {
                 } else if let str = String(data: data, encoding: .ascii) {
                     content = str
                 } else {
-                    content = "Unable to read content with common encodings. File may be binary or in a special format."
+                    content = L10n.tr("unable.read.common.encodings")
                 }
             } catch {
-                content = "Failed to read file content: \(error.localizedDescription)"
+                content = L10n.tr("failed.read.file.content", error.localizedDescription)
             }
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
@@ -95,7 +104,7 @@ struct FileOperations {
     }
     
     static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, originalFileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
-        fileContent.wrappedValue = "Loading content..."
+        fileContent.wrappedValue = L10n.tr("loading.content")
         Task {
             var content: String = ""
             var currentFileSize: Int64 = 0
@@ -103,6 +112,16 @@ struct FileOperations {
             let url = URL(fileURLWithPath: file.path)
             do {
                 let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+                if let type = attributes[.type] as? FileAttributeType, type == .typeDirectory {
+                    content = L10n.tr("directory.item.message")
+                    await MainActor.run { [content] in
+                        fileContent.wrappedValue = content
+                        originalFileContent.wrappedValue = content
+                        fileSize.wrappedValue = 0
+                        fileModificationDate.wrappedValue = nil
+                    }
+                    return
+                }
                 currentFileSize = attributes[.size] as? Int64 ?? 0
                 currentFileModificationDate = attributes[.modificationDate] as? Date
                 
@@ -114,10 +133,10 @@ struct FileOperations {
                 } else if let str = String(data: data, encoding: .ascii) {
                     content = str
                 } else {
-                    content = "Unable to read content with common encodings. File may be binary or in a special format."
+                    content = L10n.tr("unable.read.common.encodings")
                 }
             } catch {
-                content = "Failed to read file content: \(error.localizedDescription)"
+                content = L10n.tr("failed.read.file.content", error.localizedDescription)
             }
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content

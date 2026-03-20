@@ -67,6 +67,7 @@ private struct ValueChangeModifier<V: Equatable>: ViewModifier {
 }
 
 struct DetailContentView: View {
+    @ObservedObject private var localization = LocalizationSettings.shared
     @Binding var fileContent: String
     @Binding var originalFileContent: String
     @Binding var selectedFile: ConfigFile?
@@ -87,10 +88,10 @@ struct DetailContentView: View {
             if let selectedFile {
                 if showEditorSearchBar {
                     HStack {
-                        TextField("Search content...", text: $editorSearchText)
+                        TextField(L10n.tr("search.content.placeholder"), text: $editorSearchText)
                             .frame(width: 200 * globalZoomLevel)
                             .disableAutocorrection(true)
-                            .help("Search in current file (Press Enter for next)")
+                            .help(L10n.tr("search.current.file.help"))
                             .focused($searchFieldFocused)
                             .font(.system(size: 13 * globalZoomLevel))
                             .onSubmit {
@@ -107,7 +108,7 @@ struct DetailContentView: View {
                                 .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help("Find next")
+                        .help(L10n.tr("find.next"))
                         Button(action: {
                             editorViewRef?.findPrevious(editorSearchText)
                         }) {
@@ -115,7 +116,7 @@ struct DetailContentView: View {
                                 .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help("Find previous")
+                        .help(L10n.tr("find.previous"))
 
                         Text("\(editorCurrentMatchIndex) of \(editorMatchCount)")
                             .font(.system(size: 11 * globalZoomLevel))
@@ -129,7 +130,7 @@ struct DetailContentView: View {
                                 .font(.system(size: 13 * globalZoomLevel))
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help("Close search")
+                        .help(L10n.tr("close.search"))
                     }
                     .padding(.all, 5 * globalZoomLevel)
                 }
@@ -177,7 +178,7 @@ struct DetailContentView: View {
                             .foregroundColor(.secondary)
                     }
                     if let modDate = fileModificationDate {
-                        Text("Modified \(modDate.formatModificationDate())")
+                        Text(L10n.tr("modified.at", modDate.formatModificationDate()))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -197,22 +198,22 @@ struct DetailContentView: View {
                 }) {
                     Image(systemName: showHistorySidebar ? "clock.fill" : "clock")
                 }
-                .help(showHistorySidebar ? "Hide version history" : "Show version history")
+                .help(showHistorySidebar ? L10n.tr("hide.version.history") : L10n.tr("show.version.history"))
             }
 
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Picker("Appearance", selection: $colorSchemeOption) {
+                    Picker(L10n.tr("appearance"), selection: $colorSchemeOption) {
                         ForEach(ColorSchemeOption.allCases, id: \.self) {
                             option in
-                            Text(option.rawValue).tag(option)
+                            Text(option.displayName).tag(option)
                         }
                     }
                     .pickerStyle(InlinePickerStyle())
                 } label: {
                     Image(systemName: colorSchemeOption == .dark ? "moon.fill" : "sun.max.fill")
                         .foregroundColor(.accentColor)
-                        .help("Change appearance")
+                        .help(L10n.tr("change.appearance"))
                 }
             }
         }
@@ -240,10 +241,10 @@ struct DetailContentView: View {
             }
 
             VStack(spacing: 8 * globalZoomLevel) {
-                Text("当前分组还没有配置文件")
+                Text(L10n.tr("empty.group.title"))
                     .font(.system(size: 22 * globalZoomLevel, weight: .semibold))
 
-                Text("从左侧添加配置文件，或把已有配置文件移动到这个分组。")
+                Text(L10n.tr("empty.group.description"))
                     .font(.system(size: 13 * globalZoomLevel))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

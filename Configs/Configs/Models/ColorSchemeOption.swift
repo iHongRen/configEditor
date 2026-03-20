@@ -11,6 +11,15 @@ enum ColorSchemeOption: String, CaseIterable {
     case light = "Light"
     case dark = "Dark"
 
+    var displayName: String {
+        switch self {
+        case .light:
+            return L10n.tr("light")
+        case .dark:
+            return L10n.tr("dark")
+        }
+    }
+
     var colorScheme: ColorScheme? {
         switch self {
         case .light:

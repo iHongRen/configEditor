@@ -13,6 +13,7 @@ class ConfigManager: ObservableObject {
         static let allConfigs = "allConfigs"
         static let configGroups = "configGroups"
         static let selectedGroupID = "selectedConfigGroupID"
+        static let deletedAutoDiscoveredPaths = "deletedAutoDiscoveredPaths"
     }
 
     @Published var configFiles: [ConfigFile] = []
@@ -47,6 +48,15 @@ class ConfigManager: ObservableObject {
         }
     }
 
+    private func loadDeletedAutoDiscoveredPaths() -> Set<String> {
+        let paths = UserDefaults.standard.stringArray(forKey: StorageKeys.deletedAutoDiscoveredPaths) ?? []
+        return Set(paths)
+    }
+
+    private func saveDeletedAutoDiscoveredPaths(_ paths: Set<String>) {
+        UserDefaults.standard.set(Array(paths).sorted(), forKey: StorageKeys.deletedAutoDiscoveredPaths)
+    }
+
     private func loadGroups() {
         if let groupDicts = UserDefaults.standard.array(forKey: StorageKeys.configGroups) as? [[String: Any]] {
             groups = groupDicts.compactMap { ConfigGroup.fromDictionary($0) }
@@ -55,23 +65,120 @@ class ConfigManager: ObservableObject {
     }
 
     private func setupInitialConfigs() {
-        // Try loading from "allConfigs" first
-        if let configDicts = UserDefaults.standard.array(forKey: StorageKeys.allConfigs) as? [[String: Any]], !configDicts.isEmpty {
-            let configs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
-            // Filter out files that no longer exist
-            let validConfigs = configs.filter { FileManager.default.fileExists(atPath: $0.path) }
-            configFiles = validConfigs
-            
-            // If some files were removed, update UserDefaults
-            if validConfigs.count != configs.count {
-                saveAllConfigs()
-            }
+        let scannedConfigs = scanHomeDirectoryConfigFiles()
+        let scannedPaths = Set(scannedConfigs.map(\.path))
+        let deletedPaths = loadDeletedAutoDiscoveredPaths()
+
+        let savedConfigs: [ConfigFile]
+        if let configDicts = UserDefaults.standard.array(forKey: StorageKeys.allConfigs) as? [[String: Any]] {
+            savedConfigs = configDicts.compactMap { ConfigFile.fromDictionary($0) }
         } else {
-            // First launch or cleared data: scan the filesystem
-            configFiles = CommonConfigData.scanForDefaultConfigFiles()
-            // Persist the scanned files for next launch
-            saveAllConfigs()
+            savedConfigs = []
         }
+
+        let existingSavedConfigs = savedConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let migratedConfigs = existingSavedConfigs.filter { file in
+            if file.isCustom {
+                return true
+            }
+            return scannedPaths.contains(file.path) && !deletedPaths.contains(file.path)
+        }
+
+        var mergedConfigs = migratedConfigs
+        let existingPaths = Set(mergedConfigs.map(\.path))
+
+        for scannedConfig in scannedConfigs {
+            guard !existingPaths.contains(scannedConfig.path),
+                  !deletedPaths.contains(scannedConfig.path) else {
+                continue
+            }
+            mergedConfigs.append(scannedConfig)
+        }
+
+        configFiles = mergedConfigs
+        sortConfigFiles()
+        saveAllConfigs()
+    }
+
+    private func scanHomeDirectoryConfigFiles() -> [ConfigFile] {
+        let homeURL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        let fileManager = FileManager.default
+        guard let itemURLs = try? fileManager.contentsOfDirectory(
+            at: homeURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+            options: [.skipsPackageDescendants]
+        ) else {
+            return []
+        }
+
+        var discoveredPaths = Set<String>()
+
+        for itemURL in itemURLs {
+            let itemName = itemURL.lastPathComponent
+            let values = try? itemURL.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
+
+            if values?.isRegularFile == true, matchesAutoDiscoveredFileName(itemName) {
+                discoveredPaths.insert(itemURL.path)
+            }
+
+            if values?.isDirectory == true, itemName.hasPrefix(".") {
+                discoveredPaths.formUnion(scanOneLevel(in: itemURL))
+            }
+        }
+
+        return discoveredPaths
+            .map { path in
+                ConfigFile(name: URL(fileURLWithPath: path).lastPathComponent, path: path, isCustom: false)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func scanOneLevel(in directoryURL: URL) -> Set<String> {
+        let fileManager = FileManager.default
+        guard let itemURLs = try? fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsPackageDescendants]
+        ) else {
+            return []
+        }
+
+        return Set(
+            itemURLs.compactMap { itemURL in
+                let values = try? itemURL.resourceValues(forKeys: [.isRegularFileKey])
+                guard values?.isRegularFile == true,
+                      matchesAutoDiscoveredFileName(itemURL.lastPathComponent) else {
+                    return nil
+                }
+                return itemURL.path
+            }
+        )
+    }
+
+    private func matchesAutoDiscoveredFileName(_ name: String) -> Bool {
+        let lowercasedName = name.lowercased()
+        guard name != ".DS_Store" else {
+            return false
+        }
+        return name.hasPrefix(".") || lowercasedName.contains("config")
+    }
+
+    private func isAutoDiscoveredConfigPath(_ path: String) -> Bool {
+        let homePath = NSHomeDirectory()
+        let homeURL = URL(fileURLWithPath: homePath, isDirectory: true)
+        let fileURL = URL(fileURLWithPath: path)
+        let standardizedFileURL = fileURL.standardizedFileURL
+        let parentURL = standardizedFileURL.deletingLastPathComponent()
+        let fileName = standardizedFileURL.lastPathComponent
+
+        if parentURL == homeURL.standardizedFileURL {
+            return matchesAutoDiscoveredFileName(fileName)
+        }
+
+        let grandparentURL = parentURL.deletingLastPathComponent()
+        return grandparentURL == homeURL.standardizedFileURL
+            && parentURL.lastPathComponent.hasPrefix(".")
+            && matchesAutoDiscoveredFileName(fileName)
     }
 
     private func normalizeGroupState() {
@@ -106,9 +213,9 @@ class ConfigManager: ObservableObject {
 
     func groupName(for groupID: String?) -> String {
         guard let groupID else {
-            return "全部"
+            return L10n.tr("all.groups")
         }
-        return groups.first(where: { $0.id == groupID })?.name ?? "未知分组"
+        return groups.first(where: { $0.id == groupID })?.name ?? L10n.tr("unknown.group")
     }
 
     func selectGroup(_ groupID: String?) {
@@ -216,6 +323,11 @@ class ConfigManager: ObservableObject {
     
     func addConfigFile(_ newConfig: ConfigFile) {
         if !configFiles.contains(where: { $0.path == newConfig.path }) {
+            if isAutoDiscoveredConfigPath(newConfig.path) {
+                var deletedPaths = loadDeletedAutoDiscoveredPaths()
+                deletedPaths.remove(newConfig.path)
+                saveDeletedAutoDiscoveredPaths(deletedPaths)
+            }
             configFiles.append(newConfig)
             sortConfigFiles()
             saveAllConfigs()
@@ -224,6 +336,11 @@ class ConfigManager: ObservableObject {
     
     func deleteConfigFile(_ file: ConfigFile) {
         if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
+            if isAutoDiscoveredConfigPath(file.path) {
+                var deletedPaths = loadDeletedAutoDiscoveredPaths()
+                deletedPaths.insert(file.path)
+                saveDeletedAutoDiscoveredPaths(deletedPaths)
+            }
             configFiles.remove(at: index)
             saveAllConfigs()
         }

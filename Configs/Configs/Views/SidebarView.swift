@@ -242,6 +242,7 @@ private struct GroupEditorState: Identifiable {
 
 struct SidebarView: View {
     @ObservedObject var configManager: ConfigManager
+    @ObservedObject private var localization = LocalizationSettings.shared
     @Binding var selectedFile: ConfigFile?
     @Binding var searchText: String
     @Binding var showFileImporter: Bool
@@ -274,7 +275,7 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             HStack(alignment: .center) {
                 ZStack {
-                    TextField("Search config file...", text: $searchText, prompt: Text("Search config files..."))
+                    TextField(L10n.tr("search.config.file.placeholder"), text: $searchText, prompt: Text(L10n.tr("search.config.files.prompt")))
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding(.leading, 12)
                         .disableAutocorrection(true)
@@ -301,7 +302,7 @@ struct SidebarView: View {
                         .resizable()
                         .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
                         .foregroundColor(.accentColor)
-                        .help("Add custom config file")
+                        .help(L10n.tr("add.custom.config.file"))
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(.trailing, 12)
@@ -377,7 +378,7 @@ struct SidebarView: View {
                 .padding(.vertical, 4)
 
                 Button(action: {
-                    groupEditorState = GroupEditorState(groupID: nil, name: "", title: "新建分组", actionTitle: "创建")
+                    groupEditorState = GroupEditorState(groupID: nil, name: "", title: L10n.tr("new.group.title"), actionTitle: L10n.tr("new.group.create"))
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .resizable()
@@ -386,19 +387,61 @@ struct SidebarView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(.trailing, 12)
-                .help("添加分组")
+                .help(L10n.tr("new.group.title"))
             }
             .padding(.bottom, 8)
 
-            List(selection: $selectedFile) {
-                if filteredFiles.isEmpty {
-                    Text("No config files found")
-                        .font(.system(size: 13 * globalZoomLevel))
-                } else {
+            if filteredFiles.isEmpty {
+                VStack(spacing: 14 * globalZoomLevel) {
+                    Spacer()
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 22 * globalZoomLevel, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.accentColor.opacity(0.16),
+                                        Color.accentColor.opacity(0.06)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 116 * globalZoomLevel, height: 116 * globalZoomLevel)
+
+                        Image(systemName: "folder.badge.questionmark")
+                            .font(.system(size: 40 * globalZoomLevel, weight: .medium))
+                            .foregroundColor(.accentColor)
+                    }
+
+                    VStack(spacing: 6 * globalZoomLevel) {
+                        Text(L10n.tr("list.empty.title"))
+                            .font(.system(size: 16 * globalZoomLevel, weight: .semibold))
+
+                        Text(L10n.tr("list.empty.description"))
+                            .font(.system(size: 12 * globalZoomLevel))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24 * globalZoomLevel)
+                    }
+
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selectedFile) {
                     ForEach(filteredFiles) { file in
                         HStack {
-                            Text(file.name)
-                                .font(.system(size: 13 * globalZoomLevel))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(file.name)
+                                    .font(.system(size: 13 * globalZoomLevel))
+
+                                if let parentDirectoryName = file.parentDirectoryName {
+                                    Text(parentDirectoryName)
+                                        .font(.system(size: 11 * globalZoomLevel))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                             // Tag bubble display (capsule)
                             if let tag = file.tag {
                                 let bg = Color(red: tag.r, green: tag.g, blue: tag.b).opacity(tag.a)
@@ -463,7 +506,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: file.isPinned ? "pin.slash" : "pin")
-                                    Text(file.isPinned ? "Unpin" : "Pin")
+                                    Text(file.isPinned ? L10n.tr("unpin") : L10n.tr("pin"))
                                 }
                             }
 
@@ -487,7 +530,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "tag")
-                                    Text("Tag")
+                                    Text(L10n.tr("tag"))
                                 }
                             }
 
@@ -499,7 +542,7 @@ struct SidebarView: View {
                                         if file.groupID == nil {
                                             Image(systemName: "checkmark")
                                         }
-                                        Text("全部分组")
+                                        Text(L10n.tr("all.groups"))
                                     }
                                 }
 
@@ -522,7 +565,7 @@ struct SidebarView: View {
                             } label: {
                                 HStack {
                                     Image(systemName: "folder.badge.gearshape")
-                                    Text("Move to Group")
+                                    Text(L10n.tr("move.to.group"))
                                 }
                             }
 
@@ -533,7 +576,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "doc.on.doc")
-                                    Text("Copy Path")
+                                    Text(L10n.tr("copy.path"))
                                 }
                             }
 
@@ -542,7 +585,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "folder")
-                                    Text("Open in Finder")
+                                    Text(L10n.tr("open.in.finder"))
                                 }
                             }
 
@@ -551,7 +594,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "highlighter")
-                                    Text("Open in VSCode")
+                                    Text(L10n.tr("open.in.vscode"))
                                 }
                             }
 
@@ -560,7 +603,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "rectangle.and.pencil.and.ellipsis")
-                                    Text("Open in Cursor")
+                                    Text(L10n.tr("open.in.cursor"))
                                 }
                             }
 
@@ -569,7 +612,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "terminal")
-                                    Text("Open in Terminal")
+                                    Text(L10n.tr("open.in.terminal"))
                                 }
                             }
 
@@ -581,7 +624,7 @@ struct SidebarView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "trash")
-                                    Text("Delete")
+                                    Text(L10n.tr("delete"))
                                 }
                             }
                         }
@@ -620,7 +663,7 @@ struct SidebarView: View {
     // Tagging sheet (item-based) - improved layout
     .sheet(item: $tagEditorFile) { target in
             VStack(spacing: 16) {
-                Text("Add Tag")
+                Text(L10n.tr("add.tag"))
                     .font(.title3)
                     .padding(.top, 16)
 
@@ -674,7 +717,7 @@ struct SidebarView: View {
                     
                     // Cancel (filled but subtle)
                     Button(action: { tagEditorFile = nil }) {
-                        Text("Cancel")
+                        Text(L10n.tr("cancel"))
                             .foregroundColor(.primary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -691,7 +734,7 @@ struct SidebarView: View {
                             configManager.setTag(nil, for: target)
                             tagEditorFile = nil
                         }) {
-                            Text("Delete")
+                            Text(L10n.tr("delete"))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -707,7 +750,7 @@ struct SidebarView: View {
                         configManager.setTag(tag, for: target)
                         tagEditorFile = nil
                     }) {
-                        Text("Save")
+                        Text(L10n.tr("save"))
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
@@ -727,7 +770,7 @@ struct SidebarView: View {
                 Text(state.title)
                     .font(.title3)
 
-                TextField("输入分组名称", text: Binding(
+                TextField(L10n.tr("group.name.placeholder"), text: Binding(
                     get: { groupEditorState?.name ?? state.name },
                     set: { groupEditorState?.name = $0 }
                 ))
@@ -736,7 +779,7 @@ struct SidebarView: View {
                 HStack {
                     Spacer()
 
-                    Button("取消") {
+                    Button(L10n.tr("cancel")) {
                         groupEditorState = nil
                     }
 
@@ -749,7 +792,7 @@ struct SidebarView: View {
             .padding(20)
             .frame(width: 320)
         }
-        .alert("删除分组", isPresented: Binding(
+        .alert(L10n.tr("delete.group"), isPresented: Binding(
             get: { pendingDeleteGroup != nil },
             set: { isPresented in
                 if !isPresented {
@@ -757,17 +800,17 @@ struct SidebarView: View {
                 }
             }
         )) {
-            Button("取消", role: .cancel) {
+            Button(L10n.tr("cancel"), role: .cancel) {
                 pendingDeleteGroup = nil
             }
-            Button("删除", role: .destructive) {
+            Button(L10n.tr("delete"), role: .destructive) {
                 if let group = pendingDeleteGroup {
                     configManager.deleteGroup(id: group.id)
                 }
                 pendingDeleteGroup = nil
             }
         } message: {
-            Text("删除后，该分组下的配置文件会保留，但会回到“全部分组”。")
+            Text(L10n.language == .chinese ? "删除后，该分组下的配置文件会保留，但会回到“全部分组”。" : "Deleting a group keeps its config files, but moves them back to All.")
         }
     }
 
@@ -810,11 +853,11 @@ struct SidebarView: View {
             }
             .contextMenu {
                 if isEditable, let groupID, let group = configManager.groups.first(where: { $0.id == groupID }) {
-                    Button("编辑") {
-                        groupEditorState = GroupEditorState(groupID: group.id, name: group.name, title: "编辑分组", actionTitle: "保存")
+                    Button(L10n.tr("edit")) {
+                        groupEditorState = GroupEditorState(groupID: group.id, name: group.name, title: L10n.tr("edit"), actionTitle: L10n.tr("save"))
                     }
 
-                    Button("删除", role: .destructive) {
+                    Button(L10n.tr("delete"), role: .destructive) {
                         pendingDeleteGroup = group
                     }
                 }

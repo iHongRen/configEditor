@@ -10,21 +10,24 @@ import AppKit
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var localization = LocalizationSettings.shared
     
     private let appName = Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "Configs"
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     private let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     private let githubURL = "https://github.com/iHongRen/configEditor"
     
-    private let shortcuts = [
-        ShortcutItem(keys: ["⌘", "F"], description: "Show Search Bar", category: "Search", icon: "magnifyingglass"),
-        ShortcutItem(keys: ["⌘", "S"], description: "Save File & git commit", category: "File", icon: "doc.badge.plus"),
-        ShortcutItem(keys: ["⌘", "/"], description: "Toggle Comment/Uncomment Lines", category: "Edit", icon: "text.bubble"),
-        ShortcutItem(keys: ["⌘", "=", "/", "⌘", "+"], description: "Zoom In", category: "View", icon: "plus.magnifyingglass"),
-        ShortcutItem(keys: ["⌘", "-"], description: "Zoom Out", category: "View", icon: "minus.magnifyingglass"),
-        ShortcutItem(keys: ["⌘", "0"], description: "Reset Zoom", category: "View", icon: "1.magnifyingglass"),
-        ShortcutItem(keys: ["esc"], description: "Close Search Bar", category: "Search", icon: "xmark.circle"),
-    ]
+    private var shortcuts: [ShortcutItem] {
+        [
+            ShortcutItem(keys: ["⌘", "F"], description: L10n.tr("show.search.bar"), category: L10n.tr("search"), icon: "magnifyingglass"),
+            ShortcutItem(keys: ["⌘", "S"], description: L10n.language == .chinese ? "保存文件并提交 git" : "Save File & git commit", category: L10n.tr("file"), icon: "doc.badge.plus"),
+            ShortcutItem(keys: ["⌘", "/"], description: L10n.language == .chinese ? "切换注释/取消注释" : "Toggle Comment/Uncomment Lines", category: L10n.tr("edit"), icon: "text.bubble"),
+            ShortcutItem(keys: ["⌘", "=", "/", "⌘", "+"], description: L10n.language == .chinese ? "放大" : "Zoom In", category: L10n.tr("view"), icon: "plus.magnifyingglass"),
+            ShortcutItem(keys: ["⌘", "-"], description: L10n.language == .chinese ? "缩小" : "Zoom Out", category: L10n.tr("view"), icon: "minus.magnifyingglass"),
+            ShortcutItem(keys: ["⌘", "0"], description: L10n.language == .chinese ? "重置缩放" : "Reset Zoom", category: L10n.tr("view"), icon: "1.magnifyingglass"),
+            ShortcutItem(keys: ["esc"], description: L10n.language == .chinese ? "关闭搜索栏" : "Close Search Bar", category: L10n.tr("search"), icon: "xmark.circle"),
+        ]
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -62,7 +65,7 @@ struct AboutView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     
-                    Text("Version \(version) (\(buildNumber))")
+                    Text(L10n.tr("version.label", version, buildNumber))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -72,10 +75,26 @@ struct AboutView: View {
             .padding(.bottom, 20)
             
             Divider()
+
+            VStack(alignment: .leading, spacing: 10) {
+              
+                Picker(L10n.tr("language"), selection: Binding(
+                    get: { localization.language },
+                    set: { L10n.setLanguage($0) }
+                )) {
+                    Text(L10n.tr("language.english")).tag(AppLanguage.english)
+                    Text(L10n.tr("language.chinese")).tag(AppLanguage.chinese)
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+
+            Divider()
             
             // Keyboard Shortcuts section
             VStack(spacing: 16) {
-                Text("Keyboard Shortcuts")
+                Text(L10n.tr("keyboard.shortcuts"))
                     .font(.headline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
@@ -132,7 +151,7 @@ struct AboutView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "link")
                             .font(.system(size: 12))
-                        Text("View on GitHub")
+                        Text(L10n.tr("view.on.github"))
                             .font(.system(size: 13))
                     }
                     .foregroundColor(.accentColor)
@@ -144,7 +163,7 @@ struct AboutView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Open GitHub repository")
+                .help(L10n.tr("open.github.repository"))
                 
                 // User homepage button
                 Button(action: {
@@ -167,7 +186,7 @@ struct AboutView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Visit developer's homepage")
+                .help(L10n.tr("developer.homepage"))
                 
                 // Donate button
                 Button(action: {
@@ -178,7 +197,7 @@ struct AboutView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 12))
-                        Text("Donate")
+                        Text(L10n.tr("donate"))
                             .font(.system(size: 13))
                     }
                     .foregroundColor(.white)
@@ -196,7 +215,7 @@ struct AboutView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Support the developer")
+                .help(L10n.tr("support.developer"))
                 
                 Spacer()
             }
@@ -213,10 +232,10 @@ struct AboutView: View {
     
     private func categoryIcon(for category: String) -> String {
         switch category {
-        case "Search": return "magnifyingglass"
-        case "File": return "doc"
-        case "Edit": return "pencil"
-        case "View": return "eye"
+        case L10n.tr("search"): return "magnifyingglass"
+        case L10n.tr("file"): return "doc"
+        case L10n.tr("edit"): return "pencil"
+        case L10n.tr("view"): return "eye"
         default: return "questionmark"
         }
     }
@@ -292,7 +311,7 @@ class AboutWindow {
             defer: false
         )
         
-        newWindow.title = "About Configs"
+        newWindow.title = L10n.tr("about.configs")
         newWindow.contentViewController = hostingController
         newWindow.center()
         newWindow.setFrameAutosaveName("AboutWindow")

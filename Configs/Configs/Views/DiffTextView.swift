@@ -52,7 +52,7 @@ struct DiffTextView: View {
         }
         .background(Color(NSColor.textBackgroundColor))
         .contextMenu {
-            Button("Copy Diff") {
+            Button(L10n.tr("copy.diff")) {
                 copyDiffToClipboard()
             }
         }

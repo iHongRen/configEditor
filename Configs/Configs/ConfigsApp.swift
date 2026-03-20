@@ -19,7 +19,7 @@ struct ConfigsApp: App {
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About Configs") {
+                Button(L10n.tr("about.configs")) {
                     AboutWindow.show()
                 }
             }
@@ -37,16 +37,20 @@ struct ConfigsApp: App {
     
     private static func hideDefaultMenuItems() {
             guard let mainMenu = NSApplication.shared.mainMenu else { return }
+
+            let hiddenMenuTitles = ["File", "Edit", "View", "Window", "Help", "文件", "编辑", "显示", "窗口", "帮助"]
+            let appMenuTitles = ["Configs"]
+            let visibleSubmenuTitles = [L10n.tr("about.configs"), L10n.tr("quit.configs"), "About Configs", "Quit Configs", "关于 Configs", "退出 Configs"]
             
             for item in mainMenu.items {
-                if ["File", "Edit", "View", "Window", "Help"].contains(item.title) {
+                if hiddenMenuTitles.contains(item.title) {
                     item.isHidden = true
                 }
                 
-                if item.title == "Configs" {
+                if appMenuTitles.contains(item.title) {
                     if let submenu = item.submenu {
                         for subItem in submenu.items {
-                            if ["About Configs", "Quit Configs"].contains(subItem.title) {
+                            if visibleSubmenuTitles.contains(subItem.title) {
                                 subItem.isHidden = false
                             } else {
                                 subItem.isHidden = true
