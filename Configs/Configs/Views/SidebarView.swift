@@ -313,7 +313,7 @@ struct SidebarView: View {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            groupChip(title: "全部", groupID: nil, isEditable: false)
+                            groupChip(title: L10n.tr("all.groups"), groupID: nil, isEditable: false)
                                 .id("all-groups")
 
                             ForEach(configManager.groups) { group in
@@ -487,7 +487,7 @@ struct SidebarView: View {
                             }
                         }
                         .help(file.path)
-                        .padding(.vertical, 5 * globalZoomLevel)
+                        .padding(.vertical, 6 * globalZoomLevel)
                         .padding(.horizontal, 8 * globalZoomLevel)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
