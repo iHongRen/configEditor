@@ -632,24 +632,6 @@ struct SidebarView: View {
                 }
             }
         }
-        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                if let url = urls.first {
-                    let name = url.lastPathComponent
-                    let path = url.path
-
-                    if !configManager.configFiles.contains(where: { $0.path == path }) {
-                        let newConfig = ConfigFile(name: name, path: path, isCustom: true, groupID: configManager.selectedGroupID)
-                        configManager.addConfigFile(newConfig)
-                        selectedFile = newConfig
-                        FileOperations.loadAndSetFileContent(file: newConfig, fileContent: $fileContent, originalFileContent: $originalFileContent, fileSize: $fileSize, fileModificationDate: $fileModificationDate)
-                    }
-                }
-            default:
-                break
-            }
-        }
         .compatibleOnChange(of: searchText) { _, _ in
             syncSelectionWithVisibleFiles()
         }

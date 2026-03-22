@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import UniformTypeIdentifiers
 
 
 struct ContentView: View {
@@ -36,6 +37,7 @@ struct ContentView: View {
     @State private var contextMenuFile: ConfigFile?
     @State private var showDeleteAlert = false
     @State private var showHistorySidebar = false
+    @State private var isDropTargeted = false
 
     private func loadSelectedFile(_ file: ConfigFile?) {
         selectedFile = file
@@ -55,6 +57,89 @@ struct ContentView: View {
             fileSize: $fileSize,
             fileModificationDate: $fileModificationDate
         )
+    }
+
+    private func addCustomConfigFiles(from urls: [URL]) {
+        let fileManager = FileManager.default
+        var firstAddedFile: ConfigFile?
+
+        for url in urls {
+            let path = url.path
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue,
+                  !configManager.configFiles.contains(where: { $0.path == path }) else {
+                continue
+            }
+
+            let newConfig = ConfigFile(
+                name: url.lastPathComponent,
+                path: path,
+                isCustom: true,
+                groupID: configManager.selectedGroupID
+            )
+            configManager.addConfigFile(newConfig)
+
+            if firstAddedFile == nil {
+                firstAddedFile = newConfig
+            }
+        }
+
+        guard let firstAddedFile else {
+            return
+        }
+
+        if showHistorySidebar {
+            showHistorySidebar = false
+        }
+        loadSelectedFile(firstAddedFile)
+    }
+
+    private func handleDroppedFileProviders(_ providers: [NSItemProvider]) -> Bool {
+        let fileURLType = UTType.fileURL.identifier
+        let supportedProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(fileURLType) }
+        guard !supportedProviders.isEmpty else {
+            return false
+        }
+
+        let group = DispatchGroup()
+        var droppedURLs: [URL] = []
+        let lock = NSLock()
+
+        for provider in supportedProviders {
+            group.enter()
+            provider.loadItem(forTypeIdentifier: fileURLType, options: nil) { item, _ in
+                defer { group.leave() }
+
+                let resolvedURL: URL?
+                if let data = item as? Data {
+                    resolvedURL = URL(dataRepresentation: data, relativeTo: nil)
+                } else if let url = item as? URL {
+                    resolvedURL = url
+                } else if let nsData = item as? NSData {
+                    resolvedURL = URL(dataRepresentation: nsData as Data, relativeTo: nil)
+                } else {
+                    resolvedURL = nil
+                }
+
+                guard let resolvedURL else {
+                    return
+                }
+
+                lock.lock()
+                droppedURLs.append(resolvedURL)
+                lock.unlock()
+            }
+        }
+
+        group.notify(queue: .main) {
+            let uniqueURLs = Array(Set(droppedURLs.map { $0.standardizedFileURL.path }))
+                .map { URL(fileURLWithPath: $0) }
+                .sorted { $0.path < $1.path }
+            addCustomConfigFiles(from: uniqueURLs)
+        }
+
+        return true
     }
 
     var body: some View {
@@ -132,30 +217,28 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                    .padding(8)
+                    .allowsHitTesting(false)
+            }
+        }
         .onAppear {
             configManager.sortConfigFiles()
             loadSelectedFile(configManager.visibleFiles(searchText: searchText).first)
         }
-        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls):
-                if let url = urls.first {
-                    let name = url.lastPathComponent
-                    let path = url.path
-                 
-                    if !configManager.configFiles.contains(where: { $0.path == path }) {
-                        let newConfig = ConfigFile(name: name, path: path, isCustom: true, groupID: configManager.selectedGroupID)
-                        configManager.addConfigFile(newConfig)
-                        // Close history sidebar when switching to a new file
-                        if showHistorySidebar {
-                            showHistorySidebar = false
-                        }
-                        loadSelectedFile(newConfig)
-                    }
-                }
+                addCustomConfigFiles(from: urls)
             default:
                 break
             }
+        }
+        .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+            handleDroppedFileProviders(providers)
         }
         .keyboardShortcutHandler(
             showEditorSearchBar: $showEditorSearchBar,
