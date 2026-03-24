@@ -2,6 +2,12 @@
 
 [中文 README](./README.md)
 
+<p align="center">
+  <a href="https://github.com/iHongRen/configEditor/releases/latest"><img src="https://img.shields.io/github/v/release/iHongRen/configEditor?label=version&color=green" alt="version"></a>
+  <a href="https://github.com/iHongRen/configEditor"><img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13+"></a>
+  <a href="https://ihongren.github.io/donate.html"><img src="https://img.shields.io/badge/Sponsor-Donate-orange" alt="Sponsor"></a>
+</p>
+
 A **macOS** config file manager that lets you quickly view, edit, and manage configuration files on your computer (such as `.zshrc`, `.gitconfig`, etc.). Built with SwiftUI.
 
 ## Screenshots

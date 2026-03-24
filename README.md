@@ -2,6 +2,12 @@
 
 [English README](./README_en.md)
 
+<p align="center">
+  <a href="https://github.com/iHongRen/configEditor/releases/latest"><img src="https://img.shields.io/github/v/release/iHongRen/configEditor?label=version&color=green" alt="version"></a>
+  <a href="https://github.com/iHongRen/configEditor"><img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13+"></a>
+  <a href="https://ihongren.github.io/donate.html"><img src="https://img.shields.io/badge/Sponsor-Donate-orange" alt="Sponsor"></a>
+</p>
+
 一款 **macOS** 配置文件管理工具，快速查看、编辑和管理电脑上的各种配置文件（如 `.zshrc`、`.gitconfig` 等）。采用 SwiftUI 开发。
 
 ## 截图
