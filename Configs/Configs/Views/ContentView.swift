@@ -63,9 +63,21 @@ struct ContentView: View {
 
     private func addCustomConfigFiles(from urls: [URL]) {
         let fileManager = FileManager.default
+        let normalizedURLs = urls.map { $0.standardizedFileURL }
+
+        if normalizedURLs.count == 1,
+           let existingFile = configManager.configFiles.first(where: { $0.path == normalizedURLs[0].path }) {
+            configManager.selectGroup(existingFile.groupID)
+            if showHistorySidebar {
+                showHistorySidebar = false
+            }
+            loadSelectedFile(existingFile)
+            return
+        }
+
         var lastAddedFile: ConfigFile?
 
-        for url in urls {
+        for url in normalizedURLs {
             let path = url.path
             var isDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
