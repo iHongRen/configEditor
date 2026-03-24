@@ -177,9 +177,8 @@ struct TagNameEditor: View {
                 .foregroundColor(.white)
                 .clipShape(Capsule())
                 .compatibleOnChange(of: text) { _, new in
-                    // 限制标签字数：中文 5 字，英文 10 字
                     let hasHan = new.range(of: "\\p{Han}", options: .regularExpression) != nil
-                    let maxLen = hasHan ? 5 : 10
+                    let maxLen = hasHan ? 10 : 20
                     if new.count > maxLen {
                         text = String(new.prefix(maxLen))
                     }

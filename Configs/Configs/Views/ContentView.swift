@@ -237,8 +237,10 @@ struct ContentView: View {
         .overlay {
             if isDropTargeted {
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                    .padding(8)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
+                    .padding(.horizontal, 5)
+                    .padding(.top, -5)
+                    .padding(.bottom, 5)
                     .allowsHitTesting(false)
             }
         }

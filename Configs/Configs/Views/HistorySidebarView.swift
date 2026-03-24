@@ -55,11 +55,9 @@ struct HistorySidebarView: View {
             Button(L10n.tr("restore"), role: .destructive) {
                 if let content = selectedCommitContent, let commit = selectedCommit, !isRestoring {
                     isRestoring = true
-                    
-                    // 立即调用恢复回调，让 UI 快速响应
+           
                     onRestore(content, commit.hash)
                     
-                    // 短暂延迟后重置状态和显示成功提示
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         self.isRestoring = false
                         self.showRestoreSuccess()
@@ -302,7 +300,7 @@ struct HistorySidebarView: View {
         VStack(spacing: 0) {
             // Diff header with drag functionality
             ZStack {
-                // 可拖动的背景层 - 覆盖整个 header
+              
                 Rectangle()
                     .fill(Color.clear)
                     .contentShape(Rectangle())
@@ -329,7 +327,7 @@ struct HistorySidebarView: View {
                             }
                     )
                 
-                // Header 内容层 - 按钮可以正常交互
+                // Header
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {
                         Button(action: {
