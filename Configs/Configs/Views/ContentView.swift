@@ -39,6 +39,8 @@ struct ContentView: View {
     @State private var showHistorySidebar = false
     @State private var isDropTargeted = false
 
+    private let fileDropTypes: [UTType] = [.fileURL]
+
     private func loadSelectedFile(_ file: ConfigFile?) {
         selectedFile = file
 
@@ -61,7 +63,7 @@ struct ContentView: View {
 
     private func addCustomConfigFiles(from urls: [URL]) {
         let fileManager = FileManager.default
-        var firstAddedFile: ConfigFile?
+        var lastAddedFile: ConfigFile?
 
         for url in urls {
             let path = url.path
@@ -79,20 +81,17 @@ struct ContentView: View {
                 groupID: configManager.selectedGroupID
             )
             configManager.addConfigFile(newConfig)
-
-            if firstAddedFile == nil {
-                firstAddedFile = newConfig
-            }
+            lastAddedFile = newConfig
         }
 
-        guard let firstAddedFile else {
+        guard let lastAddedFile else {
             return
         }
 
         if showHistorySidebar {
             showHistorySidebar = false
         }
-        loadSelectedFile(firstAddedFile)
+        loadSelectedFile(lastAddedFile)
     }
 
     private func handleDroppedFileProviders(_ providers: [NSItemProvider]) -> Bool {
@@ -159,6 +158,9 @@ struct ContentView: View {
                 fileModificationDate: $fileModificationDate
             )
             .navigationSplitViewColumnWidth(min: 200 * globalZoomLevel, ideal: 250 * globalZoomLevel, max: 300 * globalZoomLevel)
+            .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
+                handleDroppedFileProviders(providers)
+            }
         } detail: {
             // Main content area with optional right sidebar
             HStack(spacing: 0) {
@@ -176,9 +178,18 @@ struct ContentView: View {
                     fileSize: $fileSize,
                     fileModificationDate: $fileModificationDate,
                     colorSchemeOption: $colorSchemeOption,
-                    showHistorySidebar: $showHistorySidebar
+                    showHistorySidebar: $showHistorySidebar,
+                    onFileDrop: { urls in
+                        addCustomConfigFiles(from: urls)
+                    },
+                    onFileDragStateChanged: { isDragging in
+                        isDropTargeted = isDragging
+                    }
                 )
                 .frame(maxWidth: .infinity)
+                .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
+                    handleDroppedFileProviders(providers)
+                }
                 
                 // Right sidebar - History (conditionally shown)
                 if showHistorySidebar {
@@ -212,8 +223,14 @@ struct ContentView: View {
                             }
                         )
                         .frame(minWidth: 300 * globalZoomLevel, maxWidth: 400 * globalZoomLevel)
+                        .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
+                            handleDroppedFileProviders(providers)
+                        }
                     }
                 }
+            }
+            .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
+                handleDroppedFileProviders(providers)
             }
         }
         .frame(minWidth: 600 * globalZoomLevel, minHeight: 400 * globalZoomLevel)
@@ -237,7 +254,7 @@ struct ContentView: View {
                 break
             }
         }
-        .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+        .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
             handleDroppedFileProviders(providers)
         }
         .keyboardShortcutHandler(

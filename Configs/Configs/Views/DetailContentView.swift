@@ -82,6 +82,8 @@ struct DetailContentView: View {
     @Binding var fileModificationDate: Date?
     @Binding var colorSchemeOption: ColorSchemeOption
     @Binding var showHistorySidebar: Bool
+    var onFileDrop: (([URL]) -> Void)? = nil
+    var onFileDragStateChanged: ((Bool) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,6 +161,8 @@ struct DetailContentView: View {
                                    }
                                )
                            },
+                           onFileDrop: onFileDrop,
+                           onFileDragStateChanged: onFileDragStateChanged,
                            zoomLevel: globalZoomLevel,
                            matchCount: $editorMatchCount,
                            currentMatchIndex: $editorCurrentMatchIndex)

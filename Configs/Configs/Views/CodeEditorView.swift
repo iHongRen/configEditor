@@ -11,6 +11,8 @@ import AppKit
 // MARK: - Custom NSTextView for handling keyboard shortcuts
 class CustomTextView: NSTextView {
     weak var coordinator: CodeEditorView.Coordinator?
+    var onFileDrop: (([URL]) -> Void)?
+    var onFileDragStateChanged: ((Bool) -> Void)?
     
     override func keyDown(with event: NSEvent) {
         // Handle Cmd+/ for toggle comment
@@ -27,6 +29,69 @@ class CustomTextView: NSTextView {
         
         super.keyDown(with: event)
     }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let pasteboard = sender.draggingPasteboard
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+        onFileDragStateChanged?( !urls.isEmpty )
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onFileDragStateChanged?(false)
+        super.draggingExited(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pasteboard = sender.draggingPasteboard
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+        guard !urls.isEmpty else {
+            onFileDragStateChanged?(false)
+            return false
+        }
+        onFileDrop?(urls)
+        onFileDragStateChanged?(false)
+        return true
+    }
+}
+
+private final class DropAwareScrollView: NSScrollView {
+    var onFileDrop: (([URL]) -> Void)?
+    var onFileDragStateChanged: ((Bool) -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let pasteboard = sender.draggingPasteboard
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+        onFileDragStateChanged?( !urls.isEmpty )
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onFileDragStateChanged?(false)
+        super.draggingExited(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pasteboard = sender.draggingPasteboard
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+        guard !urls.isEmpty else {
+            onFileDragStateChanged?(false)
+            return false
+        }
+        onFileDrop?(urls)
+        onFileDragStateChanged?(false)
+        return true
+    }
 }
 
 struct CodeEditorView: NSViewRepresentable {
@@ -38,6 +103,8 @@ struct CodeEditorView: NSViewRepresentable {
     var showSearchBar: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
     var onSaveWithCursorLine: ((String?) -> Void)? = nil
+    var onFileDrop: (([URL]) -> Void)? = nil
+    var onFileDragStateChanged: ((Bool) -> Void)? = nil
     var zoomLevel: Double
     @Binding var matchCount: Int
     @Binding var currentMatchIndex: Int
@@ -98,15 +165,19 @@ struct CodeEditorView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = DropAwareScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
+        scrollView.onFileDrop = onFileDrop
+        scrollView.onFileDragStateChanged = onFileDragStateChanged
         
         let textView = CustomTextView()
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
         textView.autoresizingMask = [.width, .height]
+        textView.registerForDraggedTypes([.fileURL])
+        textView.onFileDragStateChanged = onFileDragStateChanged
         
         // Ensure undo manager is properly configured
         // NSTextView automatically creates an undo manager, so we don't need to set it manually
@@ -121,6 +192,7 @@ struct CodeEditorView: NSViewRepresentable {
         
         context.coordinator.textView = textView
         textView.coordinator = context.coordinator
+        textView.onFileDrop = onFileDrop
         textView.delegate = context.coordinator
         
         textView.string = text
