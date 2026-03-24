@@ -480,9 +480,9 @@ struct SidebarView: View {
                             }
                         }
                         .help(file.path)
-                        .padding(.vertical, 6 * globalZoomLevel)
+                        .padding(.vertical, 8 * globalZoomLevel)
                         .padding(.horizontal, 8 * globalZoomLevel)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 40 * globalZoomLevel, alignment: .leading)
                         .background(
                             (selectedFile == file) ? Color.accentColor.opacity(0.3) : (file.isPinned ? Color.accentColor.opacity(0.05) : Color.clear)
                         )
@@ -621,8 +621,12 @@ struct SidebarView: View {
                                 }
                             }
                         }
+                        .listRowInsets(EdgeInsets(top: 2.5, leading: 4, bottom: 2.5, trailing: 4))
+                        .listRowSeparator(.hidden)
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .compatibleOnChange(of: searchText) { _, _ in

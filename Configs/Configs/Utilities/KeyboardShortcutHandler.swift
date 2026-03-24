@@ -18,6 +18,8 @@ struct KeyboardShortcutHandler: ViewModifier {
     @Binding var originalFileContent: String
     @Binding var selectedFile: ConfigFile?
     @Binding var fileModificationDate: Date?
+    let selectPreviousFile: () -> Void
+    let selectNextFile: () -> Void
 
     @State private var keyMonitor: Any?
 
@@ -82,6 +84,18 @@ struct KeyboardShortcutHandler: ViewModifier {
                             return nil
                         }
                     }
+                    if !event.modifierFlags.contains(.command) &&
+                        !event.modifierFlags.contains(.option) &&
+                        !event.modifierFlags.contains(.control) {
+                        if event.keyCode == 126 { // Up arrow
+                            selectPreviousFile()
+                            return nil
+                        }
+                        if event.keyCode == 125 { // Down arrow
+                            selectNextFile()
+                            return nil
+                        }
+                    }
                     return event
                 }
             }
@@ -104,7 +118,9 @@ extension View {
         fileContent: Binding<String>,
         originalFileContent: Binding<String>,
         selectedFile: Binding<ConfigFile?>,
-        fileModificationDate: Binding<Date?>
+        fileModificationDate: Binding<Date?>,
+        selectPreviousFile: @escaping () -> Void,
+        selectNextFile: @escaping () -> Void
     ) -> some View {
         modifier(
             KeyboardShortcutHandler(
@@ -116,7 +132,9 @@ extension View {
                 fileContent: fileContent,
                 originalFileContent: originalFileContent,
                 selectedFile: selectedFile,
-                fileModificationDate: fileModificationDate
+                fileModificationDate: fileModificationDate,
+                selectPreviousFile: selectPreviousFile,
+                selectNextFile: selectNextFile
             )
         )
     }

@@ -153,6 +153,26 @@ struct ContentView: View {
         return true
     }
 
+    private func selectVisibleFile(offset: Int) {
+        let files = configManager.visibleFiles(searchText: searchText)
+        guard !files.isEmpty else {
+            return
+        }
+
+        guard let selectedFile,
+              let currentIndex = files.firstIndex(where: { $0.path == selectedFile.path }) else {
+            loadSelectedFile(offset > 0 ? files.first : files.last)
+            return
+        }
+
+        let nextIndex = max(0, min(files.count - 1, currentIndex + offset))
+        guard nextIndex != currentIndex else {
+            return
+        }
+
+        loadSelectedFile(files[nextIndex])
+    }
+
     var body: some View {
         NavigationSplitView {
             // Left sidebar - File list
@@ -281,7 +301,13 @@ struct ContentView: View {
             fileContent: $fileContent,
             originalFileContent: $originalFileContent,
             selectedFile: $selectedFile,
-            fileModificationDate: $fileModificationDate
+            fileModificationDate: $fileModificationDate,
+            selectPreviousFile: {
+                selectVisibleFile(offset: -1)
+            },
+            selectNextFile: {
+                selectVisibleFile(offset: 1)
+            }
         )
         .alert(L10n.tr("delete.config.file"), isPresented: $showDeleteAlert) {
             Button(L10n.tr("cancel"), role: .cancel) { }
