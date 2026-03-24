@@ -7,16 +7,16 @@
 
 set -euo pipefail
 
-PROJECT_PATH=${1:-"Configs/Configs.xcodeproj"}
-SCHEME=${2:-"Configs"}
-CONFIGURATION=${3:-"Release"}
-APP_NAME=${4:-"Configs"}
-OUTPUT_DIR=${5:-"$(pwd)/build/output"}
+PROJECT_PATH="../Configs/Configs.xcodeproj"
+SCHEME="Configs"
+CONFIGURATION="Release"
+APP_NAME="Configs"
+OUTPUT_DIR="$(pwd)/build/output"
 
 BUILD_DIR="$(pwd)/build"
 STAGING_DIR="$BUILD_DIR/staging"
 
-DMG_NAME="${APP_NAME}-${CONFIGURATION}.dmg"
+DMG_NAME="${APP_NAME}.dmg"
 DMG_PATH="$OUTPUT_DIR/$DMG_NAME"
 
 echo "Project: $PROJECT_PATH"
