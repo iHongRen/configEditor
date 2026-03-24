@@ -288,6 +288,10 @@ class ConfigManager: ObservableObject {
         saveGroups()
     }
 
+    func isLastGroup(_ groupID: String) -> Bool {
+        groups.last?.id == groupID
+    }
+
     func togglePin(for file: ConfigFile) {
         if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
             configFiles[index].isPinned.toggle()

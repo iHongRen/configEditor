@@ -17,13 +17,18 @@ private struct GroupDropDelegate: DropDelegate {
 
     func dropEntered(info: DropInfo) {
         guard let draggedGroupID,
-              draggedGroupID != targetGroup.id else {
+              draggedGroupID != targetGroup.id,
+              dropTargetGroupID != targetGroup.id else {
             return
         }
 
         dropTargetGroupID = targetGroup.id
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.84)) {
-            configManager.moveGroup(from: draggedGroupID, to: targetGroup.id)
+        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.86, blendDuration: 0.14)) {
+            if configManager.isLastGroup(targetGroup.id) {
+                configManager.moveGroupToEnd(draggedGroupID)
+            } else {
+                configManager.moveGroup(from: draggedGroupID, to: targetGroup.id)
+            }
         }
     }
 
@@ -54,12 +59,13 @@ private struct GroupTrailingDropDelegate: DropDelegate {
     let configManager: ConfigManager
 
     func dropEntered(info: DropInfo) {
-        guard let draggedGroupID else {
+        guard let draggedGroupID,
+              dropTargetGroupID != "end-of-groups" else {
             return
         }
 
         dropTargetGroupID = "end-of-groups"
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.84)) {
+        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.86, blendDuration: 0.14)) {
             configManager.moveGroupToEnd(draggedGroupID)
         }
     }
@@ -330,39 +336,23 @@ struct SidebarView: View {
                                     )
                             }
 
-                            if draggedGroupID != nil {
-                                Capsule()
-                                    .fill(dropTargetGroupID == "end-of-groups" ? Color.accentColor.opacity(0.22) : Color.secondary.opacity(0.08))
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(
-                                                dropTargetGroupID == "end-of-groups" ? Color.accentColor.opacity(0.75) : Color.secondary.opacity(0.18),
-                                                style: StrokeStyle(lineWidth: 1.2, dash: [4, 4])
-                                            )
+                            Color.clear
+                                .frame(width: 1, height: 34 * globalZoomLevel)
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: GroupTrailingDropDelegate(
+                                        draggedGroupID: $draggedGroupID,
+                                        dropTargetGroupID: $dropTargetGroupID,
+                                        configManager: configManager
                                     )
-                                    .frame(width: 44 * globalZoomLevel, height: 34 * globalZoomLevel)
-                                    .overlay(
-                                        Image(systemName: "arrow.right")
-                                            .font(.system(size: 12 * globalZoomLevel, weight: .semibold))
-                                            .foregroundColor(dropTargetGroupID == "end-of-groups" ? .accentColor : .secondary)
-                                    )
-                                    .onDrop(
-                                        of: [UTType.text],
-                                        delegate: GroupTrailingDropDelegate(
-                                            draggedGroupID: $draggedGroupID,
-                                            dropTargetGroupID: $dropTargetGroupID,
-                                            configManager: configManager
-                                        )
-                                    )
-                                    .transition(.opacity.combined(with: .scale))
-                            }
+                                )
                         }
                         .padding(.leading, 4)
                         .padding(.trailing, 6)
                         .padding(.vertical, 4)
-                        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: configManager.groups)
-                        .animation(.spring(response: 0.22, dampingFraction: 0.86), value: draggedGroupID)
-                        .animation(.spring(response: 0.22, dampingFraction: 0.86), value: dropTargetGroupID)
+                        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.84, blendDuration: 0.14), value: configManager.groups)
+                        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.88, blendDuration: 0.12), value: draggedGroupID)
+                        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.88, blendDuration: 0.12), value: dropTargetGroupID)
                     }
                     .onAppear {
                         scrollSelectedGroupIntoView(using: proxy, animated: false)
@@ -844,8 +834,8 @@ struct SidebarView: View {
                     }
                 }
             }
-            .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isDragged)
-            .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isDropTarget)
+            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.88, blendDuration: 0.12), value: isDragged)
+            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.88, blendDuration: 0.12), value: isDropTarget)
     }
 
     private func syncSelectionWithVisibleFiles() {
