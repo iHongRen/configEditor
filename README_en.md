@@ -13,6 +13,7 @@ A **macOS** config file manager that lets you quickly view, edit, and manage con
 ## Features
 
 - **Auto Discovery**: Automatically finds common config files (`.zshrc`, `.bashrc`, `.gitconfig`, `.vimrc`, etc.)
+- **Multi-file Import and Drag & Drop**: Import multiple files at once, or drag files directly into the app window
 - **Instant Effect**: When editing shell config files like `.zshrc`, the app automatically executes `source` on save, making changes take effect immediately
 - **Version History**: Uses Git to automatically track all edits, with full history view, diff comparison, and one-click restore
 - **File Management**: Add custom files, pin frequently used configs, and organize with color tags

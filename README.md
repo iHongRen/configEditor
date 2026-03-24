@@ -12,6 +12,7 @@
 ## 功能
 
 - **自动扫描**：自动发现常见的配置文件（`.zshrc`、`.bashrc`、`.gitconfig`、`.vimrc` 等）
+- **批量与拖放添加**：支持多文件导入，也支持多个配置文件直接拖到 Configs 窗口中添加
 - **即时生效**：编辑 `.zshrc` 等 shell 配置文件后，保存时自动执行 `source` 命令，改动立即生效
 - **版本管理**：基于 Git 自动记录每次编辑，支持查看历史、对比差异、一键恢复
 - **代码编辑器**：多种文件类型的语法高亮，支持搜索、缩放、黑暗模式
@@ -48,10 +49,9 @@ cd configEditor/Configs
 2. 打开终端，运行以下命令：
 
    ```bash
-   chmod +x /Applications/Configs.app/Contents/MacOS/Configs
    xattr -d com.apple.quarantine /Applications/Configs.app
    ```
-
+   
 3. 现在可以从应用程序文件夹或 Launchpad 打开 `Configs.app`
 
 
