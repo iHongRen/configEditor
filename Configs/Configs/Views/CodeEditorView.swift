@@ -287,12 +287,13 @@ struct CodeEditorView: NSViewRepresentable {
         let patterns = getHighlightPatterns(for: fileExtension, theme: theme)
         let commentRanges = usesLightweightHighlighting ? [] : getCommentRanges(for: fileExtension, in: textStorage.string, fullRange: fullRange)
         for (pattern, color) in patterns {
+            let addsLinkAttribute = pattern.contains("https?://")
             if usesLightweightHighlighting || pattern.contains("#.*") || pattern.contains(";.*") {
                 // Apply comment highlighting without exclusion
-                highlightPattern(textStorage, pattern, color: color, range: fullRange)
+                highlightPattern(textStorage, pattern, color: color, range: fullRange, addsLinkAttribute: addsLinkAttribute)
             } else {
                 // Apply other patterns excluding comment ranges
-                highlightPattern(textStorage, pattern, color: color, range: fullRange, excludeRanges: commentRanges)
+                highlightPattern(textStorage, pattern, color: color, range: fullRange, excludeRanges: commentRanges, addsLinkAttribute: addsLinkAttribute)
             }
         }
 
@@ -411,7 +412,7 @@ struct CodeEditorView: NSViewRepresentable {
             break
         }
         
-        patterns.append(("(https?://[^\\s]+)", theme.link))
+        patterns.append(("(https?://(?:[A-Za-z0-9\\-._~:/?#\\[\\]@!$&*+,;=%]|\\([^\\s()]*\\))*(?:[A-Za-z0-9\\-._~:/?#\\[\\]@!$&*+=%]|\\([^\\s()]*\\)))", theme.link))
         
         return patterns
     }
@@ -454,7 +455,7 @@ struct CodeEditorView: NSViewRepresentable {
         return commentRanges
     }
     
-    internal func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = []) {
+    internal func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = [], addsLinkAttribute: Bool = false) {
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: .caseInsensitive)
             regex.enumerateMatches(in: textStorage.string, options: [], range: range) { match, _, _ in
@@ -468,8 +469,18 @@ struct CodeEditorView: NSViewRepresentable {
                 }
                 
                 if !shouldExclude {
-                    let attribute: [NSAttributedString.Key: Any] = isBackground ? [.backgroundColor: color] : [.foregroundColor: color]
-                    textStorage.addAttributes(attribute, range: highlightRange)
+                    if isBackground {
+                        textStorage.addAttributes([.backgroundColor: color], range: highlightRange)
+                    } else {
+                        var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: color]
+                        if addsLinkAttribute {
+                            let linkValue = (textStorage.string as NSString).substring(with: highlightRange)
+                            attributes[.link] = linkValue
+                            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                            attributes[.cursor] = NSCursor.pointingHand
+                        }
+                        textStorage.addAttributes(attributes, range: highlightRange)
+                    }
                 }
             }
         } catch {
@@ -499,6 +510,23 @@ struct CodeEditorView: NSViewRepresentable {
             self.isFromSave = false // Reset save flag on user input
             // Ensure the cursor is visible after text changes
             textView.scrollRangeToVisible(textView.selectedRange())
+        }
+
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            let linkString: String?
+            if let url = link as? URL {
+                linkString = url.absoluteString
+            } else {
+                linkString = link as? String
+            }
+
+            guard let linkString,
+                  let url = URL(string: linkString) else {
+                return false
+            }
+
+            NSWorkspace.shared.open(url)
+            return true
         }
         
         func save() {
@@ -619,12 +647,13 @@ struct CodeEditorView: NSViewRepresentable {
             let patterns = parent.getHighlightPatterns(for: parent.fileExtension, theme: theme)
             
             for (pattern, color) in patterns {
+                let addsLinkAttribute = pattern.contains("https?://")
                 if pattern.contains("#.*") || pattern.contains(";.*") {
                     // Apply comment highlighting without exclusion
-                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange)
+                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange, addsLinkAttribute: addsLinkAttribute)
                 } else {
                     // Apply other patterns excluding comment ranges
-                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange, excludeRanges: commentRanges)
+                    parent.highlightPattern(textStorage, pattern, color: color, range: safeRange, excludeRanges: commentRanges, addsLinkAttribute: addsLinkAttribute)
                 }
             }
 
