@@ -191,6 +191,7 @@ struct ContentView: View {
                     fileModificationDate: $fileModificationDate,
                     colorSchemeOption: $colorSchemeOption,
                     showHistorySidebar: $showHistorySidebar,
+                    showFileImporter: $showFileImporter,
                     onFileDrop: { urls in
                         addCustomConfigFiles(from: urls)
                     },

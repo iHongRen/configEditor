@@ -398,7 +398,7 @@ struct SidebarView: View {
                             )
                             .frame(width: 116 * globalZoomLevel, height: 116 * globalZoomLevel)
 
-                        Image(systemName: "folder.badge.questionmark")
+                        Image(systemName: "folder.badge.plus")
                             .font(.system(size: 40 * globalZoomLevel, weight: .medium))
                             .foregroundColor(.accentColor)
                     }
@@ -417,6 +417,10 @@ struct SidebarView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showFileImporter = true
+                }
             } else {
                 List(selection: $selectedFile) {
                     ForEach(filteredFiles) { file in

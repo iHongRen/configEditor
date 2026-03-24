@@ -95,6 +95,9 @@ private final class DropAwareScrollView: NSScrollView {
 }
 
 struct CodeEditorView: NSViewRepresentable {
+    private static let largeFileSizeThreshold: Int64 = 512 * 1024
+    private static let largeTextLengthThreshold = 120_000
+
     @Binding var text: String
     var fileExtension: String
     @Binding var search: String
@@ -105,6 +108,7 @@ struct CodeEditorView: NSViewRepresentable {
     var onSaveWithCursorLine: ((String?) -> Void)? = nil
     var onFileDrop: (([URL]) -> Void)? = nil
     var onFileDragStateChanged: ((Bool) -> Void)? = nil
+    var estimatedFileSize: Int64 = 0
     var zoomLevel: Double
     @Binding var matchCount: Int
     @Binding var currentMatchIndex: Int
@@ -158,6 +162,10 @@ struct CodeEditorView: NSViewRepresentable {
     
     private var currentTheme: Theme {
         colorScheme == .dark ? Theme.dark : Theme.light
+    }
+
+    private var usesLightweightHighlighting: Bool {
+        estimatedFileSize >= Self.largeFileSizeThreshold || text.count >= Self.largeTextLengthThreshold
     }
 
     func makeCoordinator() -> Coordinator {
@@ -276,12 +284,10 @@ struct CodeEditorView: NSViewRepresentable {
 
         textView.backgroundColor = theme.background
 
-        // Get comment ranges first to exclude them from other highlighting
-        let commentRanges = getCommentRanges(for: fileExtension, in: textStorage.string, fullRange: fullRange)
-        
         let patterns = getHighlightPatterns(for: fileExtension, theme: theme)
+        let commentRanges = usesLightweightHighlighting ? [] : getCommentRanges(for: fileExtension, in: textStorage.string, fullRange: fullRange)
         for (pattern, color) in patterns {
-            if pattern.contains("#.*") || pattern.contains(";.*") {
+            if usesLightweightHighlighting || pattern.contains("#.*") || pattern.contains(";.*") {
                 // Apply comment highlighting without exclusion
                 highlightPattern(textStorage, pattern, color: color, range: fullRange)
             } else {
@@ -336,6 +342,64 @@ struct CodeEditorView: NSViewRepresentable {
                 ("(\"([^\"]*)\"|'[^']*')", theme.string),
                 ("\\$[a-zA-Z_][a-zA-Z0-9_]*|\\$\\{[^}]*\\}", theme.variable)
             ]
+        case "py":
+            patterns = [
+                ("(#.*)", theme.comment),
+                ("\\b(def|class|import|from|as|return|if|elif|else|for|while|try|except|finally|with|lambda|yield|async|await|pass|break|continue|True|False|None)\\b", theme.keyword),
+                ("(\"\"\"[\\s\\S]*?\"\"\"|'''[\\s\\S]*?'''|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(\\.\\d+)?\\b", theme.number)
+            ]
+        case "js", "ts":
+            patterns = [
+                ("(//.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(const|let|var|function|return|if|else|for|while|switch|case|break|continue|import|from|export|default|class|extends|async|await|try|catch|finally|new|typeof|instanceof)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|`([^`\\\\]|\\\\.)*`)", theme.string),
+                ("\\b\\d+(\\.\\d+)?\\b", theme.number)
+            ]
+        case "swift":
+            patterns = [
+                ("(//.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(let|var|func|struct|class|enum|protocol|extension|if|else|guard|for|while|switch|case|return|import|try|catch|throw|async|await|actor|init|deinit)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\")", theme.string),
+                ("\\b\\d+(\\.\\d+)?\\b", theme.number)
+            ]
+        case "toml":
+            patterns = [
+                ("(^\\s*#.*)", theme.comment),
+                ("(\\[[^\\]]+\\])", theme.keyword),
+                ("(^\\s*[A-Za-z0-9_.-]+\\s*=)", theme.property),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b(true|false)\\b", theme.keyword),
+                ("\\b\\d+(\\.\\d+)?\\b", theme.number)
+            ]
+        case "xml", "html":
+            patterns = [
+                ("(<!--([\\s\\S]*?)-->)", theme.comment),
+                ("(<\\/?[A-Za-z0-9:_-]+)", theme.keyword),
+                ("([A-Za-z_:][-A-Za-z0-9_:.]*(?=\\=))", theme.property),
+                ("(\"([^\"]*)\"|'([^']*)')", theme.string)
+            ]
+        case "markdown":
+            patterns = [
+                ("(^#{1,6}\\s.*$)", theme.keyword),
+                ("(```[\\s\\S]*?```|`[^`]+`)", theme.string),
+                ("(\\*\\*[^*]+\\*\\*|__[^_]+__)", theme.property),
+                ("(\\[[^\\]]+\\]\\([^\\)]+\\))", theme.link)
+            ]
+        case "properties", "env":
+            patterns = [
+                ("(^\\s*[#!].*$)", theme.comment),
+                ("(^\\s*[A-Za-z0-9_.-]+\\s*[=:])", theme.property),
+                ("(\"([^\"]*)\"|'([^']*)')", theme.string)
+            ]
+        case "docker":
+            patterns = [
+                ("(^\\s*#.*)", theme.comment),
+                ("\\b(FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL)\\b", theme.keyword),
+                ("(\"([^\"]*)\"|'([^']*)')", theme.string)
+            ]
         case "ini", "git", "conf":
              patterns = [
                 ("(^#.*)", theme.comment),
@@ -363,6 +427,12 @@ struct CodeEditorView: NSViewRepresentable {
             commentPatterns = ["^#.*", "^;.*"]
         case "yml", "yaml":
             commentPatterns = ["#.*"]
+        case "py", "toml", "docker", "properties", "env":
+            commentPatterns = ["#.*"]
+        case "js", "ts", "swift":
+            commentPatterns = ["//.*", "/\\*[\\s\\S]*?\\*/"]
+        case "xml", "html":
+            commentPatterns = ["<!--([\\s\\S]*?)-->"]
         default:
             return []
         }

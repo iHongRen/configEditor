@@ -64,37 +64,10 @@ struct FileOperations {
     static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
         fileContent.wrappedValue = L10n.tr("loading.content")
         Task {
-            var content: String = ""
-            var currentFileSize: Int64 = 0
-            var currentFileModificationDate: Date? = nil
-            let url = URL(fileURLWithPath: file.path)
-            do {
-                let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
-                if let type = attributes[.type] as? FileAttributeType, type == .typeDirectory {
-                    content = L10n.tr("directory.item.message")
-                    await MainActor.run { [content] in
-                        fileContent.wrappedValue = content
-                        fileSize.wrappedValue = 0
-                        fileModificationDate.wrappedValue = nil
-                    }
-                    return
-                }
-                currentFileSize = attributes[.size] as? Int64 ?? 0
-                currentFileModificationDate = attributes[.modificationDate] as? Date
-                
-                let data = try Data(contentsOf: url)
-                if let str = String(data: data, encoding: .utf8) {
-                    content = str
-                } else if let str = String(data: data, encoding: .isoLatin1) {
-                    content = str
-                } else if let str = String(data: data, encoding: .ascii) {
-                    content = str
-                } else {
-                    content = L10n.tr("unable.read.common.encodings")
-                }
-            } catch {
-                content = L10n.tr("failed.read.file.content", error.localizedDescription)
-            }
+            let result = loadFileContentResult(file: file)
+            let content = result.content
+            let currentFileSize = result.fileSize
+            let currentFileModificationDate = result.modificationDate
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 fileSize.wrappedValue = currentFileSize
@@ -106,38 +79,10 @@ struct FileOperations {
     static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, originalFileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
         fileContent.wrappedValue = L10n.tr("loading.content")
         Task {
-            var content: String = ""
-            var currentFileSize: Int64 = 0
-            var currentFileModificationDate: Date? = nil
-            let url = URL(fileURLWithPath: file.path)
-            do {
-                let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
-                if let type = attributes[.type] as? FileAttributeType, type == .typeDirectory {
-                    content = L10n.tr("directory.item.message")
-                    await MainActor.run { [content] in
-                        fileContent.wrappedValue = content
-                        originalFileContent.wrappedValue = content
-                        fileSize.wrappedValue = 0
-                        fileModificationDate.wrappedValue = nil
-                    }
-                    return
-                }
-                currentFileSize = attributes[.size] as? Int64 ?? 0
-                currentFileModificationDate = attributes[.modificationDate] as? Date
-                
-                let data = try Data(contentsOf: url)
-                if let str = String(data: data, encoding: .utf8) {
-                    content = str
-                } else if let str = String(data: data, encoding: .isoLatin1) {
-                    content = str
-                } else if let str = String(data: data, encoding: .ascii) {
-                    content = str
-                } else {
-                    content = L10n.tr("unable.read.common.encodings")
-                }
-            } catch {
-                content = L10n.tr("failed.read.file.content", error.localizedDescription)
-            }
+            let result = loadFileContentResult(file: file)
+            let content = result.content
+            let currentFileSize = result.fileSize
+            let currentFileModificationDate = result.modificationDate
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 originalFileContent.wrappedValue = content // Set original content for change detection
@@ -145,6 +90,35 @@ struct FileOperations {
                 fileModificationDate.wrappedValue = currentFileModificationDate
             }
         }
+    }
+
+    private static func loadFileContentResult(file: ConfigFile) -> (content: String, fileSize: Int64, modificationDate: Date?) {
+        var content: String = ""
+        var currentFileSize: Int64 = 0
+        var currentFileModificationDate: Date? = nil
+        let url = URL(fileURLWithPath: file.path)
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            if let type = attributes[.type] as? FileAttributeType, type == .typeDirectory {
+                return (L10n.tr("directory.item.message"), 0, nil)
+            }
+            currentFileSize = attributes[.size] as? Int64 ?? 0
+            currentFileModificationDate = attributes[.modificationDate] as? Date
+
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            if let str = String(data: data, encoding: .utf8) {
+                content = str
+            } else if let str = String(data: data, encoding: .isoLatin1) {
+                content = str
+            } else if let str = String(data: data, encoding: .ascii) {
+                content = str
+            } else {
+                content = L10n.tr("unable.read.common.encodings")
+            }
+        } catch {
+            content = L10n.tr("failed.read.file.content", error.localizedDescription)
+        }
+        return (content, currentFileSize, currentFileModificationDate)
     }
     
     static func executeShellCommand(command: String, shell: String) {

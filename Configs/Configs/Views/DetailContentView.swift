@@ -82,6 +82,7 @@ struct DetailContentView: View {
     @Binding var fileModificationDate: Date?
     @Binding var colorSchemeOption: ColorSchemeOption
     @Binding var showHistorySidebar: Bool
+    @Binding var showFileImporter: Bool
     var onFileDrop: (([URL]) -> Void)? = nil
     var onFileDragStateChanged: ((Bool) -> Void)? = nil
 
@@ -163,6 +164,7 @@ struct DetailContentView: View {
                            },
                            onFileDrop: onFileDrop,
                            onFileDragStateChanged: onFileDragStateChanged,
+                           estimatedFileSize: fileSize,
                            zoomLevel: globalZoomLevel,
                            matchCount: $editorMatchCount,
                            currentMatchIndex: $editorCurrentMatchIndex)
@@ -256,5 +258,9 @@ struct DetailContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 32 * globalZoomLevel)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showFileImporter = true
+        }
     }
 }
