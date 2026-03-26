@@ -10,6 +10,14 @@ import AppKit
 import SwiftUI
 
 struct FileOperations {
+    struct FileMetadata {
+        let fileSize: Int64
+        let modificationDate: Date?
+        let isDirectory: Bool
+    }
+
+    private static let failedReadPrefix = "Failed to read file content:"
+
     static func saveFileContent(file: ConfigFile, content: String, onSaveSuccess: @escaping (Date) -> Void) {
         do {
             try content.write(toFile: file.path, atomically: true, encoding: .utf8)
@@ -68,12 +76,17 @@ struct FileOperations {
             let content = result.content
             let currentFileSize = result.fileSize
             let currentFileModificationDate = result.modificationDate
+            syncLoadedVersionIfNeeded(for: file, result: result)
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 fileSize.wrappedValue = currentFileSize
                 fileModificationDate.wrappedValue = currentFileModificationDate
             }
         }
+    }
+
+    static func loadFileContent(file: ConfigFile) -> (content: String, fileSize: Int64, modificationDate: Date?) {
+        loadFileContentResult(file: file)
     }
     
     static func loadAndSetFileContent(file: ConfigFile, fileContent: Binding<String>, originalFileContent: Binding<String>, fileSize: Binding<Int64>, fileModificationDate: Binding<Date?>) {
@@ -83,6 +96,7 @@ struct FileOperations {
             let content = result.content
             let currentFileSize = result.fileSize
             let currentFileModificationDate = result.modificationDate
+            syncLoadedVersionIfNeeded(for: file, result: result)
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 originalFileContent.wrappedValue = content // Set original content for change detection
@@ -90,6 +104,36 @@ struct FileOperations {
                 fileModificationDate.wrappedValue = currentFileModificationDate
             }
         }
+    }
+
+    static func loadFileMetadata(file: ConfigFile) -> FileMetadata? {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            let type = attributes[.type] as? FileAttributeType
+            return FileMetadata(
+                fileSize: attributes[.size] as? Int64 ?? 0,
+                modificationDate: attributes[.modificationDate] as? Date,
+                isDirectory: type == .typeDirectory
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private static func syncLoadedVersionIfNeeded(for file: ConfigFile, result: (content: String, fileSize: Int64, modificationDate: Date?)) {
+        guard result.content != L10n.tr("directory.item.message") else {
+            return
+        }
+
+        guard !result.content.hasPrefix(failedReadPrefix) else {
+            return
+        }
+
+        VersionManager.shared.syncLoadedContentIfNeeded(
+            result.content,
+            for: file.path,
+            reason: "External update"
+        )
     }
 
     private static func loadFileContentResult(file: ConfigFile) -> (content: String, fileSize: Int64, modificationDate: Date?) {

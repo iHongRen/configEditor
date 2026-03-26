@@ -97,6 +97,10 @@ class VersionManager {
     }
 
     func commit(content: String, for configPath: String) {
+        commit(content: content, for: configPath, message: "Update at \(Date().formatted(date: .numeric, time: .shortened))")
+    }
+
+    func commit(content: String, for configPath: String, message: String) {
         let repoURL = getRepositoryURL(for: configPath)
         let fileName = getOriginalFileName(for: configPath)
         initializeRepository(for: configPath)
@@ -115,9 +119,8 @@ class VersionManager {
             return
         }
         
-        let commitMessage = "Update at \(Date().formatted(date: .numeric, time: .shortened))"
         // Allow empty commits to ensure every save creates a version
-        let commitResult = runGitCommand(args: ["commit", "--allow-empty", "-m", commitMessage], in: repoURL)
+        let commitResult = runGitCommand(args: ["commit", "--allow-empty", "-m", message], in: repoURL)
         if commitResult.status != 0 {
             print("Git commit failed: \(commitResult.error ?? "Unknown error")")
         }
@@ -169,6 +172,41 @@ class VersionManager {
         } else {
             print("Successfully committed changes for \(configPath)")
         }
+    }
+
+    func syncLoadedContentIfNeeded(_ content: String, for configPath: String, reason: String? = nil) {
+        initializeRepository(for: configPath)
+
+        let latestContent = getLatestCommittedContent(for: configPath) ?? ""
+        let hasExistingHistory = !getCommitHistory(for: configPath).isEmpty
+
+        if hasExistingHistory {
+            commitIfChanged(
+                content: content,
+                originalContent: latestContent,
+                for: configPath,
+                cursorLine: reason
+            )
+            return
+        }
+
+        let initialReason = reason?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let commitMessage = (initialReason?.isEmpty == false) ? initialReason! : "Initial snapshot"
+        commit(content: content, for: configPath, message: commitMessage)
+    }
+
+    private func getLatestCommittedContent(for configPath: String) -> String? {
+        let repoURL = getRepositoryURL(for: configPath)
+        guard fileManager.fileExists(atPath: repoURL.appendingPathComponent(".git").path) else {
+            return nil
+        }
+
+        let fileName = getOriginalFileName(for: configPath)
+        let showResult = runGitCommand(args: ["show", "HEAD:\(fileName)"], in: repoURL)
+        guard showResult.status == 0 else {
+            return nil
+        }
+        return showResult.output
     }
 
     func getCommitHistory(for configPath: String) -> [Commit] {

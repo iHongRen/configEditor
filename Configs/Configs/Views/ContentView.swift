@@ -8,6 +8,7 @@
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
+import AppKit
 
 
 struct ContentView: View {
@@ -59,6 +60,54 @@ struct ContentView: View {
             fileSize: $fileSize,
             fileModificationDate: $fileModificationDate
         )
+    }
+
+    private func refreshSelectedFileIfNeeded(force: Bool = false) {
+        guard let selectedFile else {
+            return
+        }
+
+        guard let metadata = FileOperations.loadFileMetadata(file: selectedFile) else {
+            return
+        }
+
+        let fileChangedOnDisk =
+            metadata.fileSize != fileSize ||
+            metadata.modificationDate != fileModificationDate ||
+            metadata.isDirectory
+
+        guard force || fileChangedOnDisk else {
+            return
+        }
+
+        guard force || fileContent == originalFileContent else {
+            return
+        }
+
+        let currentSelectedPath = selectedFile.path
+
+        fileContent = L10n.tr("loading.content")
+
+        Task.detached(priority: .userInitiated) {
+            let result = FileOperations.loadFileContent(file: selectedFile)
+
+            VersionManager.shared.syncLoadedContentIfNeeded(
+                result.content,
+                for: currentSelectedPath,
+                reason: "External update"
+            )
+
+            await MainActor.run {
+                guard self.selectedFile?.path == currentSelectedPath else {
+                    return
+                }
+
+                self.fileContent = result.content
+                self.originalFileContent = result.content
+                self.fileSize = result.fileSize
+                self.fileModificationDate = result.modificationDate
+            }
+        }
     }
 
     private func addCustomConfigFiles(from urls: [URL]) {
@@ -280,6 +329,9 @@ struct ContentView: View {
         .onAppear {
             configManager.sortConfigFiles()
             loadSelectedFile(configManager.visibleFiles(searchText: searchText).first)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshSelectedFileIfNeeded()
         }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
             switch result {
