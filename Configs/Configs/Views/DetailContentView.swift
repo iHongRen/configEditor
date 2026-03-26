@@ -85,6 +85,7 @@ struct DetailContentView: View {
     @Binding var showFileImporter: Bool
     var onFileDrop: (([URL]) -> Void)? = nil
     var onFileDragStateChanged: ((Bool) -> Void)? = nil
+    var onEditorInteraction: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -164,6 +165,7 @@ struct DetailContentView: View {
                            },
                            onFileDrop: onFileDrop,
                            onFileDragStateChanged: onFileDragStateChanged,
+                           onInteraction: onEditorInteraction,
                            estimatedFileSize: fileSize,
                            zoomLevel: globalZoomLevel,
                            matchCount: $editorMatchCount,

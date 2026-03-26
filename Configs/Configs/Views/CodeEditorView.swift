@@ -13,6 +13,7 @@ class CustomTextView: NSTextView {
     weak var coordinator: CodeEditorView.Coordinator?
     var onFileDrop: (([URL]) -> Void)?
     var onFileDragStateChanged: ((Bool) -> Void)?
+    var onInteraction: (() -> Void)?
     
     override func keyDown(with event: NSEvent) {
         // Handle Cmd+/ for toggle comment
@@ -28,6 +29,11 @@ class CustomTextView: NSTextView {
         }
         
         super.keyDown(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onInteraction?()
+        super.mouseDown(with: event)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -108,6 +114,7 @@ struct CodeEditorView: NSViewRepresentable {
     var onSaveWithCursorLine: ((String?) -> Void)? = nil
     var onFileDrop: (([URL]) -> Void)? = nil
     var onFileDragStateChanged: ((Bool) -> Void)? = nil
+    var onInteraction: (() -> Void)? = nil
     var estimatedFileSize: Int64 = 0
     var zoomLevel: Double
     @Binding var matchCount: Int
@@ -201,6 +208,7 @@ struct CodeEditorView: NSViewRepresentable {
         context.coordinator.textView = textView
         textView.coordinator = context.coordinator
         textView.onFileDrop = onFileDrop
+        textView.onInteraction = onInteraction
         textView.delegate = context.coordinator
         
         textView.string = text
@@ -245,6 +253,10 @@ struct CodeEditorView: NSViewRepresentable {
         if let currentFont = textView.font, abs(currentFont.pointSize - (14 * zoomLevel)) > 0.1 {
             textView.font = .monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
             needsHighlight = true
+        }
+
+        if let customTextView = textView as? CustomTextView {
+            customTextView.onInteraction = onInteraction
         }
         
         // Only apply highlighting if textChanged is true and it's not from a save operation

@@ -7,6 +7,10 @@
 
 import Foundation
 
+extension Notification.Name {
+    static let configVersionHistoryDidChange = Notification.Name("configVersionHistoryDidChange")
+}
+
 struct Commit: Identifiable, Hashable {
     let id = UUID()
     let hash: String
@@ -18,6 +22,8 @@ class VersionManager {
     static let shared = VersionManager()
     private let fileManager = FileManager.default
     private var versionsDirectory: URL
+    private let syncCacheLock = NSLock()
+    private var latestSyncedContentByPath: [String: String] = [:]
 
     private init() {
         guard let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
@@ -63,6 +69,45 @@ class VersionManager {
         } catch {
             return (nil, "Failed to run git process: \(error.localizedDescription)", -1)
         }
+    }
+
+    private func notifyHistoryChanged(for configPath: String) {
+        let latestCommitHash = latestCommitHash(for: configPath)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .configVersionHistoryDidChange,
+                object: nil,
+                userInfo: [
+                    "configPath": configPath,
+                    "commitHash": latestCommitHash ?? ""
+                ]
+            )
+        }
+    }
+
+    private func cachedSyncedContent(for configPath: String) -> String? {
+        syncCacheLock.lock()
+        defer { syncCacheLock.unlock() }
+        return latestSyncedContentByPath[configPath]
+    }
+
+    private func updateCachedSyncedContent(_ content: String, for configPath: String) {
+        syncCacheLock.lock()
+        latestSyncedContentByPath[configPath] = content
+        syncCacheLock.unlock()
+    }
+
+    private func latestCommitHash(for configPath: String) -> String? {
+        let repoURL = getRepositoryURL(for: configPath)
+        guard fileManager.fileExists(atPath: repoURL.appendingPathComponent(".git").path) else {
+            return nil
+        }
+
+        let revParseResult = runGitCommand(args: ["rev-parse", "HEAD"], in: repoURL)
+        guard revParseResult.status == 0 else {
+            return nil
+        }
+        return revParseResult.output
     }
 
     func initializeRepository(for configPath: String) {
@@ -123,6 +168,9 @@ class VersionManager {
         let commitResult = runGitCommand(args: ["commit", "--allow-empty", "-m", message], in: repoURL)
         if commitResult.status != 0 {
             print("Git commit failed: \(commitResult.error ?? "Unknown error")")
+        } else {
+            updateCachedSyncedContent(content, for: configPath)
+            notifyHistoryChanged(for: configPath)
         }
     }
     
@@ -171,13 +219,19 @@ class VersionManager {
             print("Git commit failed: \(commitResult.error ?? "Unknown error")")
         } else {
             print("Successfully committed changes for \(configPath)")
+            updateCachedSyncedContent(content, for: configPath)
+            notifyHistoryChanged(for: configPath)
         }
     }
 
     func syncLoadedContentIfNeeded(_ content: String, for configPath: String, reason: String? = nil) {
+        if cachedSyncedContent(for: configPath) == content {
+            return
+        }
+
         initializeRepository(for: configPath)
 
-        let latestContent = getLatestCommittedContent(for: configPath) ?? ""
+        let latestContent = cachedSyncedContent(for: configPath) ?? getLatestCommittedContent(for: configPath) ?? ""
         let hasExistingHistory = !getCommitHistory(for: configPath).isEmpty
 
         if hasExistingHistory {
@@ -187,6 +241,7 @@ class VersionManager {
                 for: configPath,
                 cursorLine: reason
             )
+            updateCachedSyncedContent(content, for: configPath)
             return
         }
 
@@ -205,6 +260,9 @@ class VersionManager {
         let showResult = runGitCommand(args: ["show", "HEAD:\(fileName)"], in: repoURL)
         guard showResult.status == 0 else {
             return nil
+        }
+        if let output = showResult.output {
+            updateCachedSyncedContent(output, for: configPath)
         }
         return showResult.output
     }

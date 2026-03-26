@@ -76,12 +76,12 @@ struct FileOperations {
             let content = result.content
             let currentFileSize = result.fileSize
             let currentFileModificationDate = result.modificationDate
-            syncLoadedVersionIfNeeded(for: file, result: result)
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 fileSize.wrappedValue = currentFileSize
                 fileModificationDate.wrappedValue = currentFileModificationDate
             }
+            scheduleVersionSyncIfNeeded(for: file, result: result)
         }
     }
 
@@ -96,13 +96,13 @@ struct FileOperations {
             let content = result.content
             let currentFileSize = result.fileSize
             let currentFileModificationDate = result.modificationDate
-            syncLoadedVersionIfNeeded(for: file, result: result)
             await MainActor.run { [content, currentFileSize, currentFileModificationDate] in
                 fileContent.wrappedValue = content
                 originalFileContent.wrappedValue = content // Set original content for change detection
                 fileSize.wrappedValue = currentFileSize
                 fileModificationDate.wrappedValue = currentFileModificationDate
             }
+            scheduleVersionSyncIfNeeded(for: file, result: result)
         }
     }
 
@@ -120,7 +120,7 @@ struct FileOperations {
         }
     }
 
-    private static func syncLoadedVersionIfNeeded(for file: ConfigFile, result: (content: String, fileSize: Int64, modificationDate: Date?)) {
+    private static func scheduleVersionSyncIfNeeded(for file: ConfigFile, result: (content: String, fileSize: Int64, modificationDate: Date?)) {
         guard result.content != L10n.tr("directory.item.message") else {
             return
         }
@@ -129,11 +129,15 @@ struct FileOperations {
             return
         }
 
-        VersionManager.shared.syncLoadedContentIfNeeded(
-            result.content,
-            for: file.path,
-            reason: "External update"
-        )
+        let content = result.content
+        let path = file.path
+        Task.detached(priority: .utility) {
+            VersionManager.shared.syncLoadedContentIfNeeded(
+                content,
+                for: path,
+                reason: "External update"
+            )
+        }
     }
 
     private static func loadFileContentResult(file: ConfigFile) -> (content: String, fileSize: Int64, modificationDate: Date?) {

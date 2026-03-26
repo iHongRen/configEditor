@@ -91,12 +91,6 @@ struct ContentView: View {
         Task.detached(priority: .userInitiated) {
             let result = FileOperations.loadFileContent(file: selectedFile)
 
-            VersionManager.shared.syncLoadedContentIfNeeded(
-                result.content,
-                for: currentSelectedPath,
-                reason: "External update"
-            )
-
             await MainActor.run {
                 guard self.selectedFile?.path == currentSelectedPath else {
                     return
@@ -106,6 +100,14 @@ struct ContentView: View {
                 self.originalFileContent = result.content
                 self.fileSize = result.fileSize
                 self.fileModificationDate = result.modificationDate
+            }
+
+            Task.detached(priority: .utility) {
+                VersionManager.shared.syncLoadedContentIfNeeded(
+                    result.content,
+                    for: currentSelectedPath,
+                    reason: "External update"
+                )
             }
         }
     }
@@ -266,6 +268,11 @@ struct ContentView: View {
                     },
                     onFileDragStateChanged: { isDragging in
                         isDropTargeted = isDragging
+                    },
+                    onEditorInteraction: {
+                        if showHistorySidebar {
+                            showHistorySidebar = false
+                        }
                     }
                 )
                 .frame(maxWidth: .infinity)

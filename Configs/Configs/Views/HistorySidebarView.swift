@@ -25,7 +25,6 @@ struct HistorySidebarView: View {
     @State private var showRestoreConfirmation = false
     @State private var isRestoring = false
 
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerView
@@ -49,6 +48,15 @@ struct HistorySidebarView: View {
                 return
             }
             loadCommitDetails(commit)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .configVersionHistoryDidChange)) { notification in
+            guard let updatedConfigPath = notification.userInfo?["configPath"] as? String,
+                  updatedConfigPath == configPath else {
+                return
+            }
+
+            let commitHash = notification.userInfo?["commitHash"] as? String
+            loadCommits(selecting: commitHash)
         }
         .alert(L10n.tr("restore.version"), isPresented: $showRestoreConfirmation) {
             Button(L10n.tr("cancel"), role: .cancel) { }
@@ -520,10 +528,23 @@ struct HistorySidebarView: View {
         .background(Color(NSColor.textBackgroundColor).opacity(0.5))
     }
     
-    private func loadCommits() {
+    private func loadCommits(selecting commitHash: String? = nil) {
         commits = VersionManager.shared.getCommitHistory(for: configPath)
         print("Loaded \(commits.count) commits for \(configPath)")
-        
+
+        if let commitHash,
+           let matchedCommit = commits.first(where: { $0.hash == commitHash }) {
+            print("Selecting updated commit: \(matchedCommit.hash)")
+            selectedCommit = matchedCommit
+            return
+        }
+
+        if let currentSelectedHash = selectedCommit?.hash,
+           let matchedCommit = commits.first(where: { $0.hash == currentSelectedHash }) {
+            selectedCommit = matchedCommit
+            return
+        }
+
         if let firstCommit = commits.first {
             print("Selecting first commit: \(firstCommit.hash)")
             selectedCommit = firstCommit
