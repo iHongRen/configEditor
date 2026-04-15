@@ -50,11 +50,16 @@ class ConfigManager: ObservableObject {
 
     private func loadDeletedAutoDiscoveredPaths() -> Set<String> {
         let paths = UserDefaults.standard.stringArray(forKey: StorageKeys.deletedAutoDiscoveredPaths) ?? []
-        return Set(paths)
+        return Set(paths.map(normalizedPath))
     }
 
     private func saveDeletedAutoDiscoveredPaths(_ paths: Set<String>) {
-        UserDefaults.standard.set(Array(paths).sorted(), forKey: StorageKeys.deletedAutoDiscoveredPaths)
+        let normalized = Set(paths.map(normalizedPath))
+        UserDefaults.standard.set(Array(normalized).sorted(), forKey: StorageKeys.deletedAutoDiscoveredPaths)
+    }
+
+    private func normalizedPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
     }
 
     private func loadGroups() {
@@ -66,7 +71,7 @@ class ConfigManager: ObservableObject {
 
     private func setupInitialConfigs() {
         let scannedConfigs = scanHomeDirectoryConfigFiles()
-        let scannedPaths = Set(scannedConfigs.map(\.path))
+        let scannedPaths = Set(scannedConfigs.map { normalizedPath($0.path) })
         let deletedPaths = loadDeletedAutoDiscoveredPaths()
 
         let savedConfigs: [ConfigFile]
@@ -76,20 +81,33 @@ class ConfigManager: ObservableObject {
             savedConfigs = []
         }
 
-        let existingSavedConfigs = savedConfigs.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let existingSavedConfigs = savedConfigs
+            .map { file in
+                ConfigFile(
+                    name: file.name,
+                    path: normalizedPath(file.path),
+                    isCustom: file.isCustom,
+                    isPinned: file.isPinned,
+                    tag: file.tag,
+                    groupID: file.groupID
+                )
+            }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
         let migratedConfigs = existingSavedConfigs.filter { file in
             if file.isCustom {
                 return true
             }
-            return scannedPaths.contains(file.path) && !deletedPaths.contains(file.path)
+            let normalizedFilePath = normalizedPath(file.path)
+            return scannedPaths.contains(normalizedFilePath) && !deletedPaths.contains(normalizedFilePath)
         }
 
         var mergedConfigs = migratedConfigs
-        let existingPaths = Set(mergedConfigs.map(\.path))
+        let existingPaths = Set(mergedConfigs.map { normalizedPath($0.path) })
 
         for scannedConfig in scannedConfigs {
-            guard !existingPaths.contains(scannedConfig.path),
-                  !deletedPaths.contains(scannedConfig.path) else {
+            let normalizedScannedPath = normalizedPath(scannedConfig.path)
+            guard !existingPaths.contains(normalizedScannedPath),
+                  !deletedPaths.contains(normalizedScannedPath) else {
                 continue
             }
             mergedConfigs.append(scannedConfig)
@@ -118,7 +136,7 @@ class ConfigManager: ObservableObject {
             let values = try? itemURL.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
 
             if values?.isRegularFile == true, matchesAutoDiscoveredFileName(itemName) {
-                discoveredPaths.insert(itemURL.path)
+                discoveredPaths.insert(normalizedPath(itemURL.path))
             }
 
             if values?.isDirectory == true, itemName.hasPrefix(".") {
@@ -150,7 +168,7 @@ class ConfigManager: ObservableObject {
                       matchesAutoDiscoveredFileName(itemURL.lastPathComponent) else {
                     return nil
                 }
-                return itemURL.path
+                return normalizedPath(itemURL.path)
             }
         )
     }
@@ -166,7 +184,7 @@ class ConfigManager: ObservableObject {
     private func isAutoDiscoveredConfigPath(_ path: String) -> Bool {
         let homePath = NSHomeDirectory()
         let homeURL = URL(fileURLWithPath: homePath, isDirectory: true)
-        let fileURL = URL(fileURLWithPath: path)
+        let fileURL = URL(fileURLWithPath: normalizedPath(path))
         let standardizedFileURL = fileURL.standardizedFileURL
         let parentURL = standardizedFileURL.deletingLastPathComponent()
         let fileName = standardizedFileURL.lastPathComponent
@@ -326,13 +344,22 @@ class ConfigManager: ObservableObject {
     }
     
     func addConfigFile(_ newConfig: ConfigFile) {
-        if !configFiles.contains(where: { $0.path == newConfig.path }) {
-            if isAutoDiscoveredConfigPath(newConfig.path) {
+        let normalizedNewPath = normalizedPath(newConfig.path)
+        if !configFiles.contains(where: { normalizedPath($0.path) == normalizedNewPath }) {
+            let configToAdd = ConfigFile(
+                name: newConfig.name,
+                path: normalizedNewPath,
+                isCustom: newConfig.isCustom,
+                isPinned: newConfig.isPinned,
+                tag: newConfig.tag,
+                groupID: newConfig.groupID
+            )
+            if isAutoDiscoveredConfigPath(normalizedNewPath) {
                 var deletedPaths = loadDeletedAutoDiscoveredPaths()
-                deletedPaths.remove(newConfig.path)
+                deletedPaths.remove(normalizedNewPath)
                 saveDeletedAutoDiscoveredPaths(deletedPaths)
             }
-            configFiles.append(newConfig)
+            configFiles.append(configToAdd)
             sortConfigFiles()
             saveAllConfigs()
         }
@@ -340,9 +367,10 @@ class ConfigManager: ObservableObject {
     
     func deleteConfigFile(_ file: ConfigFile) {
         if let index = configFiles.firstIndex(where: { $0.id == file.id }) {
-            if isAutoDiscoveredConfigPath(file.path) {
+            let normalizedFilePath = normalizedPath(file.path)
+            if isAutoDiscoveredConfigPath(normalizedFilePath) {
                 var deletedPaths = loadDeletedAutoDiscoveredPaths()
-                deletedPaths.insert(file.path)
+                deletedPaths.insert(normalizedFilePath)
                 saveDeletedAutoDiscoveredPaths(deletedPaths)
             }
             configFiles.remove(at: index)
