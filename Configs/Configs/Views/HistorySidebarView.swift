@@ -9,6 +9,9 @@ import SwiftUI
 import AppKit
 
 struct HistorySidebarView: View {
+    private static let largeInitialCommitThreshold = 512 * 1024
+    private static let initialCommitPreviewLineCount = 50
+
     @ObservedObject private var localization = LocalizationSettings.shared
     let configPath: String
     @Binding var showHistorySidebar: Bool
@@ -561,7 +564,16 @@ struct HistorySidebarView: View {
         
         DispatchQueue.global(qos: .userInitiated).async {
             let content = VersionManager.shared.getContentForCommit(commit, for: self.configPath)
-            let diff = VersionManager.shared.getDiffForCommit(commit, for: self.configPath)
+            let isInitialCommit = commit.hash == self.commits.last?.hash
+            let diff: String?
+
+            if isInitialCommit,
+               let content,
+               content.utf8.count > Self.largeInitialCommitThreshold {
+                diff = self.makeInitialCommitPreviewDiff(from: content)
+            } else {
+                diff = VersionManager.shared.getDiffForCommit(commit, for: self.configPath)
+            }
             
             print("Loading commit details for \(commit.hash)")
             print("Content loaded: \(content != nil ? "Yes (\(content?.count ?? 0) chars)" : "No")")
@@ -575,6 +587,22 @@ struct HistorySidebarView: View {
                 }
             }
         }
+    }
+
+    private func makeInitialCommitPreviewDiff(from content: String) -> String {
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        let previewLines = lines.prefix(Self.initialCommitPreviewLineCount).map { "+\($0)" }
+        let omittedLineCount = max(0, lines.count - Self.initialCommitPreviewLineCount)
+
+        guard omittedLineCount > 0 else {
+            return previewLines.joined(separator: "\n")
+        }
+
+        let tailLine = L10n.language == .chinese
+            ? "+... 已省略 \(omittedLineCount) 行（首次大文件提交仅预览前 \(Self.initialCommitPreviewLineCount) 行）"
+            : "+... \(omittedLineCount) lines omitted (large initial commit preview shows first \(Self.initialCommitPreviewLineCount) lines)"
+
+        return (previewLines + [tailLine]).joined(separator: "\n")
     }
     
     private func copyDiffToClipboard(_ diff: String) {
