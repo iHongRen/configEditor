@@ -72,6 +72,7 @@ enum L10n {
         "copy.diff.to.clipboard": [.english: "Diff copied to clipboard", .chinese: "已复制差异到剪贴板"],
         "copy.content.copied": [.english: "Content copied to clipboard", .chinese: "已复制内容到剪贴板"],
         "copy.path": [.english: "Copy Path", .chinese: "复制路径"],
+        "copy.path.copied": [.english: "Path copied", .chinese: "路径已复制"],
         "delete": [.english: "Delete", .chinese: "删除"],
         "delete.group": [.english: "Delete Group", .chinese: "删除分组"],
         "delete.config.file": [.english: "Delete Config File", .chinese: "删除配置文件"],

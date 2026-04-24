@@ -235,6 +235,171 @@ private final class DropAwareScrollView: NSScrollView {
     }
 }
 
+// MARK: - Stable Left Gutter (replaces NSRuler placement quirks)
+private final class LineNumberGutterView: NSView {
+    weak var textView: NSTextView?
+    weak var scrollView: NSScrollView?
+    var zoomLevel: Double = 1.0 {
+        didSet { needsDisplay = true }
+    }
+
+    private var observers: [NSObjectProtocol] = []
+
+    init(textView: NSTextView, scrollView: NSScrollView, zoomLevel: Double) {
+        self.textView = textView
+        self.scrollView = scrollView
+        self.zoomLevel = zoomLevel
+        super.init(frame: .zero)
+        installObservers()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override var isFlipped: Bool { true }
+
+    deinit {
+        for o in observers {
+            NotificationCenter.default.removeObserver(o)
+        }
+        observers.removeAll()
+    }
+
+    func preferredWidth() -> CGFloat {
+        guard let tv = textView else { return 36 }
+        let totalLines = max(1, tv.string.split(separator: "\n", omittingEmptySubsequences: false).count)
+        let digits = String(totalLines).count
+        let font = NSFont.monospacedSystemFont(ofSize: max(10, 11 * zoomLevel), weight: .regular)
+        let charWidth = ("8" as NSString).size(withAttributes: [.font: font]).width
+        // Reserve extra room for active line bold weight and larger zoom levels.
+        let computed = max(32, CGFloat(digits) * charWidth + max(20, 22 * zoomLevel))
+        // Keep an upper bound to avoid squeezing editor content on very large files.
+        return min(180, computed)
+    }
+
+    private func installObservers() {
+        guard let tv = textView else { return }
+        observers.append(
+            NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: tv, queue: .main) { [weak self] _ in
+                self?.needsDisplay = true
+                self?.superview?.needsLayout = true
+            }
+        )
+        observers.append(
+            NotificationCenter.default.addObserver(forName: NSTextView.didChangeSelectionNotification, object: tv, queue: .main) { [weak self] _ in
+                self?.needsDisplay = true
+            }
+        )
+        observers.append(
+            NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: scrollView?.contentView, queue: .main) { [weak self] _ in
+                self?.needsDisplay = true
+            }
+        )
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let tv = textView,
+              let layoutManager = tv.layoutManager,
+              let textContainer = tv.textContainer else {
+            return
+        }
+
+        NSColor.controlBackgroundColor.setFill()
+        bounds.fill()
+
+        let font = NSFont.monospacedSystemFont(ofSize: max(10, 11 * zoomLevel), weight: .regular)
+        let baseAttrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let currentAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: max(10, 11 * zoomLevel), weight: .semibold),
+            .foregroundColor: NSColor.labelColor
+        ]
+
+        let text = tv.string as NSString
+        let visibleRectInView = tv.visibleRect
+        let visibleRectInContainer = visibleRectInView.offsetBy(dx: -tv.textContainerOrigin.x, dy: -tv.textContainerOrigin.y)
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRectInContainer, in: textContainer)
+
+        let selectedCharIndex = min(max(0, tv.selectedRange().location), text.length)
+        let currentLine = text.lineNumber(at: selectedCharIndex) + 1
+
+        var glyphIndex = glyphRange.location
+        var lastDrawnLineStart = -1
+        while glyphIndex < NSMaxRange(glyphRange) {
+            var lineGlyphRange = NSRange(location: 0, length: 0)
+            let lineFragmentRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineGlyphRange, withoutAdditionalLayout: true)
+            let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+            let lineCharRange = text.lineRange(for: NSRange(location: charIndex, length: 0))
+
+            if lineCharRange.location != lastDrawnLineStart {
+                lastDrawnLineStart = lineCharRange.location
+                let lineNo = text.lineNumber(at: lineCharRange.location) + 1
+                let attrs = (lineNo == currentLine) ? currentAttrs : baseAttrs
+                let s = "\(lineNo)" as NSString
+                let size = s.size(withAttributes: attrs)
+                let padding = max(6, 8 * zoomLevel)
+                let x = bounds.maxX - size.width - padding
+                let y = (lineFragmentRect.minY - visibleRectInContainer.origin.y) + (lineFragmentRect.height - size.height) / 2.0
+                if y + size.height >= dirtyRect.minY && y <= dirtyRect.maxY {
+                    s.draw(at: NSPoint(x: x, y: y), withAttributes: attrs)
+                }
+            }
+            glyphIndex = NSMaxRange(lineGlyphRange)
+        }
+    }
+}
+
+private final class EditorContainerView: NSView {
+    let scrollView: DropAwareScrollView
+    let gutterView: LineNumberGutterView
+    private var gutterWidthConstraint: NSLayoutConstraint?
+
+    init(scrollView: DropAwareScrollView, textView: NSTextView, zoomLevel: Double) {
+        self.scrollView = scrollView
+        self.gutterView = LineNumberGutterView(textView: textView, scrollView: scrollView, zoomLevel: zoomLevel)
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        gutterView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(gutterView)
+        addSubview(scrollView)
+
+        let width = gutterView.preferredWidth()
+        let widthConstraint = gutterView.widthAnchor.constraint(equalToConstant: width)
+        gutterWidthConstraint = widthConstraint
+
+        NSLayoutConstraint.activate([
+            gutterView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            gutterView.topAnchor.constraint(equalTo: topAnchor),
+            gutterView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            widthConstraint,
+
+            scrollView.leadingAnchor.constraint(equalTo: gutterView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func refreshGutterWidth() {
+        gutterWidthConstraint?.constant = gutterView.preferredWidth()
+    }
+
+    func updateZoom(_ zoomLevel: Double) {
+        gutterView.zoomLevel = zoomLevel
+        refreshGutterWidth()
+        needsLayout = true
+    }
+}
+
 struct CodeEditorView: NSViewRepresentable {
     private static let largeFileSizeThreshold: Int64 = 512 * 1024
     private static let largeTextLengthThreshold = 120_000
@@ -330,10 +495,12 @@ struct CodeEditorView: NSViewRepresentable {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    func makeNSView(context: Context) -> NSView {
         let scrollView = DropAwareScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
+        scrollView.verticalScrollElasticity = .none
+        scrollView.contentView.postsBoundsChangedNotifications = true
         scrollView.onFileDrop = onFileDrop
         scrollView.onFileDragStateChanged = onFileDragStateChanged
         
@@ -355,6 +522,8 @@ struct CodeEditorView: NSViewRepresentable {
         textView.isAutomaticSpellingCorrectionEnabled = false
         
         scrollView.documentView = textView
+        scrollView.hasVerticalRuler = false
+        scrollView.rulersVisible = false
         
         context.coordinator.textView = textView
         textView.coordinator = context.coordinator
@@ -364,21 +533,32 @@ struct CodeEditorView: NSViewRepresentable {
         
         textView.string = text
         textView.font = .monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
+        textView.drawsBackground = true
         applyHighlighting(context: context)
         
         DispatchQueue.main.async {
             ref = Ref(textView: textView, coordinator: context.coordinator, matchCount: $matchCount, currentMatchIndex: $currentMatchIndex)
         }
         
-        return scrollView
+        return EditorContainerView(scrollView: scrollView, textView: textView, zoomLevel: zoomLevel)
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
+    func updateNSView(_ nsView: NSView, context: Context) {
         // Keep coordinator in sync with the latest SwiftUI props (CodeEditorView is a value type).
         // Without this, coordinator.parent may keep an old fileExtension (e.g. "sh") after switching files.
         context.coordinator.parent = self
 
-        guard let textView = nsView.documentView as? NSTextView else { return }
+        guard let container = nsView as? EditorContainerView,
+              let textView = container.scrollView.documentView as? NSTextView else { return }
+
+        // Keep scroll view background opaque to avoid unintended transparency.
+        container.scrollView.drawsBackground = true
+        container.scrollView.backgroundColor = currentTheme.background
+        container.updateZoom(zoomLevel)
+        container.refreshGutterWidth()
+        if let customTextView = textView as? CustomTextView {
+            customTextView.drawsBackground = true
+        }
         
         var needsHighlight = false
         
@@ -408,6 +588,11 @@ struct CodeEditorView: NSViewRepresentable {
         if let currentFont = textView.font, abs(currentFont.pointSize - (14 * zoomLevel)) > 0.1 {
             textView.font = .monospacedSystemFont(ofSize: 14 * zoomLevel, weight: .regular)
             needsHighlight = true
+        }
+
+        if needsHighlight || context.coordinator.textChanged {
+            container.gutterView.needsDisplay = true
+            container.needsLayout = true
         }
 
         if let customTextView = textView as? CustomTextView {
@@ -1248,7 +1433,9 @@ struct CodeEditorView: NSViewRepresentable {
 // MARK: - NSString Extensions for Line Handling
 extension NSString {
     func lineNumber(at location: Int) -> Int {
-        let safeLocation = min(location, self.length)
+        // Treat a caret at the *start* of a line as being on that line.
+        // Using (location + 1) prevents the "two 1s" issue when the first line is empty.
+        let safeLocation = min(max(0, location) + 1, self.length)
         var lineNumber = 0
         
         self.enumerateSubstrings(in: NSRange(location: 0, length: safeLocation), 

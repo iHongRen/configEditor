@@ -86,6 +86,8 @@ struct DetailContentView: View {
     var onFileDrop: (([URL]) -> Void)? = nil
     var onFileDragStateChanged: ((Bool) -> Void)? = nil
     var onEditorInteraction: (() -> Void)? = nil
+    @State private var pathCopyToast: String? = nil
+    @State private var pathCopyToastWorkItem: DispatchWorkItem? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -172,6 +174,7 @@ struct DetailContentView: View {
                            matchCount: $editorMatchCount,
                            currentMatchIndex: $editorCurrentMatchIndex)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             } else {
                 emptyPlaceholder
             }
@@ -179,8 +182,22 @@ struct DetailContentView: View {
             Divider()
             HStack(spacing: 8 * globalZoomLevel) {
                 if let selectedFile = selectedFile {
-                    Text(selectedFile.path)
-                        .foregroundColor(.secondary)
+                    Button(action: {
+                        FileOperations.copyPathToClipboard(selectedFile.path)
+                        showPathCopyToast()
+                    }) {
+                        Text(selectedFile.path)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help(L10n.tr("copy.path"))
+                    if let pathCopyToast {
+                        Text(pathCopyToast)
+                            .foregroundColor(.green)
+                            .transition(.opacity)
+                    }
                     Spacer()
                     if fileSize > 0 {
                         Text(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
@@ -196,6 +213,10 @@ struct DetailContentView: View {
             .padding(.horizontal, 8 * globalZoomLevel)
             .padding(.vertical, 4 * globalZoomLevel)
             .frame(height: 24 * globalZoomLevel)
+        }
+        .onDisappear {
+            pathCopyToastWorkItem?.cancel()
+            pathCopyToastWorkItem = nil
         }
         .frame(minWidth: 400 * globalZoomLevel)
         .toolbar {
@@ -265,5 +286,20 @@ struct DetailContentView: View {
         .onTapGesture {
             showFileImporter = true
         }
+    }
+
+    private func showPathCopyToast() {
+        pathCopyToastWorkItem?.cancel()
+        withAnimation(.easeInOut(duration: 0.16)) {
+            pathCopyToast = L10n.tr("copy.path.copied")
+        }
+
+        let workItem = DispatchWorkItem {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                pathCopyToast = nil
+            }
+        }
+        pathCopyToastWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: workItem)
     }
 }
