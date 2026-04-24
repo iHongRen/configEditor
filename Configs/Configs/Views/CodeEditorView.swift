@@ -273,7 +273,7 @@ private final class LineNumberGutterView: NSView {
         let font = NSFont.monospacedSystemFont(ofSize: max(10, 11 * zoomLevel), weight: .regular)
         let charWidth = ("8" as NSString).size(withAttributes: [.font: font]).width
         // Reserve extra room for active line bold weight and larger zoom levels.
-        let computed = max(32, CGFloat(digits) * charWidth + max(20, 22 * zoomLevel))
+        let computed = max(32, CGFloat(digits) * charWidth + max(20, 22 * zoomLevel)) + 10
         // Keep an upper bound to avoid squeezing editor content on very large files.
         return min(180, computed)
     }
