@@ -23,6 +23,14 @@ struct KeyboardShortcutHandler: ViewModifier {
 
     @State private var keyMonitor: Any?
 
+    private func isTextInputFirstResponder() -> Bool {
+        // NSTextView covers CodeEditorView and also the field editor used by many SwiftUI text inputs.
+        if NSApp.keyWindow?.firstResponder is NSTextView {
+            return true
+        }
+        return false
+    }
+
     func body(content: Content) -> some View {
         content
             .onAppear {
@@ -87,6 +95,11 @@ struct KeyboardShortcutHandler: ViewModifier {
                     if !event.modifierFlags.contains(.command) &&
                         !event.modifierFlags.contains(.option) &&
                         !event.modifierFlags.contains(.control) {
+                        // When editing (or typing in any text input), arrow keys should stay in that control
+                        // instead of switching the selected file in the sidebar.
+                        if isTextInputFirstResponder() {
+                            return event
+                        }
                         if event.keyCode == 126 { // Up arrow
                             selectPreviousFile()
                             return nil
