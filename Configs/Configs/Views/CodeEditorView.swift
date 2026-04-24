@@ -8,12 +8,51 @@
 import SwiftUI
 import AppKit
 
+private extension NSColor {
+    static func fromHex(_ hex: String) -> NSColor {
+        var s = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if s.hasPrefix("#") { s.removeFirst() }
+        if s.count == 3 {
+            let chars = Array(s)
+            s = "\(chars[0])\(chars[0])\(chars[1])\(chars[1])\(chars[2])\(chars[2])"
+        }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else {
+            return .textColor
+        }
+        let r = CGFloat((v >> 16) & 0xFF) / 255.0
+        let g = CGFloat((v >> 8) & 0xFF) / 255.0
+        let b = CGFloat(v & 0xFF) / 255.0
+        return NSColor(red: r, green: g, blue: b, alpha: 1.0)
+    }
+}
+
 // MARK: - Custom NSTextView for handling keyboard shortcuts
 class CustomTextView: NSTextView {
     weak var coordinator: CodeEditorView.Coordinator?
     var onFileDrop: (([URL]) -> Void)?
     var onFileDragStateChanged: ((Bool) -> Void)?
     var onInteraction: (() -> Void)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+
+        let formatItem = NSMenuItem(
+            title: L10n.tr("format.document"),
+            action: #selector(formatDocumentAction(_:)),
+            keyEquivalent: ""
+        )
+        formatItem.target = self
+        formatItem.isEnabled = coordinator?.canFormatCurrentDocument() ?? false
+
+        // Put our action on top, VSCode-style.
+        menu.insertItem(formatItem, at: 0)
+        menu.insertItem(.separator(), at: 1)
+        return menu
+    }
+
+    @objc private func formatDocumentAction(_ sender: Any?) {
+        coordinator?.formatDocumentForSaveIfNeeded()
+    }
     
     override func keyDown(with event: NSEvent) {
         // Handle Cmd+/ for toggle comment
@@ -27,7 +66,23 @@ class CustomTextView: NSTextView {
             coordinator?.save()
             return
         }
-        
+
+        // VSCode-like editor behaviors for JSON/JSON5/JSONL
+        if !event.modifierFlags.contains(.command) &&
+            !event.modifierFlags.contains(.option) &&
+            !event.modifierFlags.contains(.control) {
+            if event.keyCode == 48 { // Tab
+                if coordinator?.handleTab(in: self, isShift: event.modifierFlags.contains(.shift)) == true {
+                    return
+                }
+            }
+            if event.keyCode == 36 || event.keyCode == 76 { // Enter or Return
+                if coordinator?.handleReturn(in: self) == true {
+                    return
+                }
+            }
+        }
+
         super.keyDown(with: event)
     }
 
@@ -135,6 +190,11 @@ struct CodeEditorView: NSViewRepresentable {
         let searchHighlight: NSColor
         let normalText: NSColor
         let background: NSColor
+        let jsonKey: NSColor
+        let jsonString: NSColor
+        let jsonNumber: NSColor
+        let jsonLiteral: NSColor
+        let jsonPunctuation: NSColor
 
         static let light = Theme(
             keyword: NSColor(red: 0.67, green: 0.13, blue: 0.55, alpha: 1.0),
@@ -148,7 +208,12 @@ struct CodeEditorView: NSViewRepresentable {
             link: .blue,
             searchHighlight: NSColor.yellow.withAlphaComponent(0.3),
             normalText: .textColor,
-            background: .textBackgroundColor
+            background: .textBackgroundColor,
+            jsonKey: NSColor.fromHex("#001080"),
+            jsonString: NSColor.fromHex("#A31515"),
+            jsonNumber: NSColor.fromHex("#098658"),
+            jsonLiteral: NSColor.fromHex("#0000FF"),
+            jsonPunctuation: NSColor.fromHex("#666666")
         )
 
         static let dark = Theme(
@@ -163,7 +228,12 @@ struct CodeEditorView: NSViewRepresentable {
             link: NSColor(red: 0.25, green: 0.68, blue: 0.88, alpha: 1.0),      // Bright Blue
             searchHighlight: NSColor.yellow.withAlphaComponent(0.4),
             normalText: NSColor(red: 0.8, green: 0.82, blue: 0.84, alpha: 1.0),   // Light Gray
-            background: NSColor(red: 0.01, green: 0.16, blue: 0.21, alpha: 1.0)  // Dark Slate
+            background: NSColor(red: 0.01, green: 0.16, blue: 0.21, alpha: 1.0),  // Dark Slate
+            jsonKey: NSColor.fromHex("#9CDCFE"),
+            jsonString: NSColor.fromHex("#CE9178"),
+            jsonNumber: NSColor.fromHex("#B5CEA8"),
+            jsonLiteral: NSColor.fromHex("#569CD6"),
+            jsonPunctuation: NSColor.fromHex("#D4D4D4")
         )
     }
     
@@ -223,6 +293,10 @@ struct CodeEditorView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        // Keep coordinator in sync with the latest SwiftUI props (CodeEditorView is a value type).
+        // Without this, coordinator.parent may keep an old fileExtension (e.g. "sh") after switching files.
+        context.coordinator.parent = self
+
         guard let textView = nsView.documentView as? NSTextView else { return }
         
         var needsHighlight = false
@@ -336,10 +410,29 @@ struct CodeEditorView: NSViewRepresentable {
         switch ext {
         case "json":
             patterns = [
-                ("(\"([^\"]*)\")\\s*:", theme.property),
-                ("(\"([^\"]*)\")", theme.string),
-                ("\\b(true|false|null)\\b", theme.keyword),
-                ("\\b-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b", theme.number)
+                ("(\"(?:\\\\.|[^\"\\\\])*\")\\s*:", theme.jsonKey),
+                ("(\"(?:\\\\.|[^\"\\\\])*\")", theme.jsonString),
+                ("\\b(true|false|null)\\b", theme.jsonLiteral),
+                ("\\b-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", theme.jsonNumber),
+                ("[{}\\[\\]:,]", theme.jsonPunctuation)
+            ]
+        case "jsonl":
+            patterns = [
+                ("(\"(?:\\\\.|[^\"\\\\])*\")\\s*:", theme.jsonKey),
+                ("(\"(?:\\\\.|[^\"\\\\])*\")", theme.jsonString),
+                ("\\b(true|false|null)\\b", theme.jsonLiteral),
+                ("\\b-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", theme.jsonNumber),
+                ("[{}\\[\\]:,]", theme.jsonPunctuation)
+            ]
+        case "json5":
+            patterns = [
+                ("(\"(?:\\\\.|[^\"\\\\])*\")\\s*:", theme.jsonKey),
+                ("\\b([A-Za-z_\\$][A-Za-z0-9_\\$]*)\\s*:", theme.jsonKey),
+                ("(\"(?:\\\\.|[^\"\\\\])*\")", theme.jsonString),
+                ("('(?:\\\\.|[^'\\\\])*')", theme.jsonString),
+                ("\\b(true|false|null|Infinity|NaN)\\b", theme.jsonLiteral),
+                ("\\b-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", theme.jsonNumber),
+                ("[{}\\[\\]:,]", theme.jsonPunctuation)
             ]
         case "yml", "yaml":
             patterns = [
@@ -443,6 +536,8 @@ struct CodeEditorView: NSViewRepresentable {
         case "py", "toml", "docker", "properties", "env":
             commentPatterns = ["#.*"]
         case "js", "ts", "swift":
+            commentPatterns = ["//.*", "/\\*[\\s\\S]*?\\*/"]
+        case "json5":
             commentPatterns = ["//.*", "/\\*[\\s\\S]*?\\*/"]
         case "xml", "html":
             commentPatterns = ["<!--([\\s\\S]*?)-->"]
@@ -548,6 +643,211 @@ struct CodeEditorView: NSViewRepresentable {
             } else {
                 parent.onSave?()
             }
+        }
+
+        // Format JSON/JSONL on save (best-effort; JSON5 intentionally skipped for safety).
+        func formatDocumentForSaveIfNeeded() {
+            guard let textView else { return }
+            let ext = parent.fileExtension.lowercased()
+            guard ext == "json" || ext == "jsonl" else { return }
+
+            let original = textView.string
+            let formatted: String?
+            if ext == "json" {
+                formatted = Self.formatJSON(original)
+            } else {
+                formatted = Self.formatJSONLines(original)
+            }
+            guard let formatted, formatted != original else { return }
+
+            let oldSel = textView.selectedRange()
+            let fullRange = NSRange(location: 0, length: (original as NSString).length)
+
+            textView.undoManager?.beginUndoGrouping()
+            defer { textView.undoManager?.endUndoGrouping() }
+
+            if textView.shouldChangeText(in: fullRange, replacementString: formatted) {
+                textView.textStorage?.replaceCharacters(in: fullRange, with: formatted)
+                textView.didChangeText()
+            }
+
+            // Best-effort cursor preservation.
+            let newLen = (formatted as NSString).length
+            let newLoc = min(oldSel.location, newLen)
+            textView.setSelectedRange(NSRange(location: newLoc, length: 0))
+
+            parent.text = formatted
+        }
+
+        func canFormatCurrentDocument() -> Bool {
+            let ext = parent.fileExtension.lowercased()
+            return ext == "json" || ext == "jsonl"
+        }
+
+        private static func formatJSON(_ text: String) -> String? {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return text }
+            guard let data = trimmed.data(using: .utf8) else { return nil }
+            guard let obj = try? JSONSerialization.jsonObject(with: data, options: []) else { return nil }
+
+            var options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
+            if #available(macOS 13.0, *) {
+                options.insert(.withoutEscapingSlashes)
+            }
+            guard let out = try? JSONSerialization.data(withJSONObject: obj, options: options),
+                  let s = String(data: out, encoding: .utf8) else { return nil }
+            return s + "\n"
+        }
+
+        private static func formatJSONLines(_ text: String) -> String? {
+            let hadTrailingNewline = text.hasSuffix("\n")
+            let rawLines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            var out: [String] = []
+            out.reserveCapacity(rawLines.count)
+
+            for raw in rawLines {
+                let line = String(raw)
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    out.append(line)
+                    continue
+                }
+                guard let data = trimmed.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data, options: []) else {
+                    out.append(line)
+                    continue
+                }
+                let compact = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys])
+                if let compact, let s = String(data: compact, encoding: .utf8) {
+                    out.append(s)
+                } else {
+                    out.append(line)
+                }
+            }
+
+            var joined = out.joined(separator: "\n")
+            if hadTrailingNewline && !joined.hasSuffix("\n") {
+                joined += "\n"
+            }
+            return joined
+        }
+
+        // MARK: - VSCode-like Indent / Tab (JSON family)
+        func handleTab(in textView: NSTextView, isShift: Bool) -> Bool {
+            let ext = parent.fileExtension.lowercased()
+            guard ext == "json" || ext == "jsonl" || ext == "json5" else { return false }
+
+            if isShift {
+                return outdentCurrentLine(in: textView, spaces: 2)
+            } else {
+                return replaceSelection(in: textView, with: "  ")
+            }
+        }
+
+        func handleReturn(in textView: NSTextView) -> Bool {
+            let ext = parent.fileExtension.lowercased()
+            guard ext == "json" || ext == "jsonl" || ext == "json5" else { return false }
+
+            let ns = textView.string as NSString
+            let sel = textView.selectedRange()
+            let cursor = sel.location
+
+            // Special case: between {} or [] -> create an indented blank line like VSCode.
+            let prevNonWS = findPrevNonWhitespace(in: ns, before: cursor)
+            let nextNonWS = findNextNonWhitespace(in: ns, after: cursor)
+            if let p = prevNonWS, let n = nextNonWS {
+                let prevCh = ns.substring(with: NSRange(location: p, length: 1))
+                let nextCh = ns.substring(with: NSRange(location: n, length: 1))
+                let isBracePair = (prevCh == "{" && nextCh == "}") || (prevCh == "[" && nextCh == "]")
+                if isBracePair {
+                    let baseIndent = currentLineIndent(in: ns, at: cursor)
+                    let innerIndent = baseIndent + "  "
+                    let insert = "\n\(innerIndent)\n\(baseIndent)"
+                    if replaceSelection(in: textView, with: insert) {
+                        let newCursor = cursor + 1 + (innerIndent as NSString).length
+                        textView.setSelectedRange(NSRange(location: newCursor, length: 0))
+                        return true
+                    }
+                }
+            }
+
+            let lineRange = ns.lineRange(for: NSRange(location: cursor, length: 0))
+            let lineStart = lineRange.location
+            let linePrefixLen = max(0, min(cursor - lineStart, ns.length - lineStart))
+            let beforeCursor = ns.substring(with: NSRange(location: lineStart, length: linePrefixLen))
+
+            let baseIndent = currentLineIndent(in: ns, at: cursor)
+            let trimmed = beforeCursor.trimmingCharacters(in: .whitespacesAndNewlines)
+            let shouldIndentMore = trimmed.hasSuffix("{") || trimmed.hasSuffix("[")
+            let newIndent = shouldIndentMore ? (baseIndent + "  ") : baseIndent
+            return replaceSelection(in: textView, with: "\n\(newIndent)")
+        }
+
+        private func replaceSelection(in textView: NSTextView, with s: String) -> Bool {
+            let sel = textView.selectedRange()
+            if textView.shouldChangeText(in: sel, replacementString: s) {
+                textView.textStorage?.replaceCharacters(in: sel, with: s)
+                textView.didChangeText()
+                let newLoc = sel.location + (s as NSString).length
+                textView.setSelectedRange(NSRange(location: newLoc, length: 0))
+                return true
+            }
+            return false
+        }
+
+        private func outdentCurrentLine(in textView: NSTextView, spaces: Int) -> Bool {
+            let ns = textView.string as NSString
+            let sel = textView.selectedRange()
+            let cursor = sel.location
+            let lineRange = ns.lineRange(for: NSRange(location: cursor, length: 0))
+            let line = ns.substring(with: lineRange)
+            let prefix = String(line.prefix(while: { $0 == " " }))
+            let removeCount = min(spaces, prefix.count)
+            guard removeCount > 0 else { return true }
+
+            let removalRange = NSRange(location: lineRange.location, length: removeCount)
+            if textView.shouldChangeText(in: removalRange, replacementString: "") {
+                textView.textStorage?.replaceCharacters(in: removalRange, with: "")
+                textView.didChangeText()
+                let newCursor = max(lineRange.location, cursor - removeCount)
+                textView.setSelectedRange(NSRange(location: newCursor, length: 0))
+                return true
+            }
+            return false
+        }
+
+        private func currentLineIndent(in ns: NSString, at location: Int) -> String {
+            let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
+            let line = ns.substring(with: lineRange)
+            let indent = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
+            return indent.replacingOccurrences(of: "\t", with: "  ")
+        }
+
+        private func isWhitespace(_ ch: unichar) -> Bool {
+            guard let scalar = UnicodeScalar(ch) else { return false }
+            return Character(scalar).isWhitespace
+        }
+
+        private func findPrevNonWhitespace(in ns: NSString, before location: Int) -> Int? {
+            var i = min(location - 1, ns.length - 1)
+            while i >= 0 {
+                if !isWhitespace(ns.character(at: i)) {
+                    return i
+                }
+                i -= 1
+            }
+            return nil
+        }
+
+        private func findNextNonWhitespace(in ns: NSString, after location: Int) -> Int? {
+            var i = max(0, location)
+            while i < ns.length {
+                if !isWhitespace(ns.character(at: i)) {
+                    return i
+                }
+                i += 1
+            }
+            return nil
         }
         
         func getCurrentLineContent() -> String? {

@@ -166,7 +166,7 @@ struct DetailContentView: View {
                            onFileDrop: onFileDrop,
                            onFileDragStateChanged: onFileDragStateChanged,
                            onInteraction: onEditorInteraction,
-                           estimatedFileSize: fileSize,
+                            estimatedFileSize: fileSize,
                            zoomLevel: globalZoomLevel,
                            matchCount: $editorMatchCount,
                            currentMatchIndex: $editorCurrentMatchIndex)

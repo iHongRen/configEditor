@@ -85,6 +85,7 @@ enum L10n {
         "file": [.english: "File", .chinese: "文件"],
         "find.next": [.english: "Find next", .chinese: "查找下一个"],
         "find.previous": [.english: "Find previous", .chinese: "查找上一个"],
+        "format.document": [.english: "Format Document", .chinese: "格式化"],
         "hide.version.history": [.english: "Hide version history", .chinese: "隐藏版本历史"],
         "keyboard.shortcuts": [.english: "Keyboard Shortcuts", .chinese: "快捷键"],
         "language": [.english: "Language", .chinese: "语言"],

@@ -106,6 +106,8 @@ struct LanguageDetector {
         
         // Other common config files
         if n.hasSuffix(".json") { return "json" }
+        if n.hasSuffix(".json5") { return "json5" }
+        if n.hasSuffix(".jsonl") { return "jsonl" }
         if n.hasSuffix(".yml") || n.hasSuffix(".yaml") { return "yml" }
         if n.hasSuffix(".py") || n.hasPrefix(".python") { return "py" }
         if n.hasSuffix(".js") { return "js" }
