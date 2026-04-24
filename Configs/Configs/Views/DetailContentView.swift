@@ -140,6 +140,7 @@ struct DetailContentView: View {
                 }
 
                 CodeEditorView(text: $fileContent,
+                           filePath: selectedFile.path,
                            fileExtension: LanguageDetector.detectLanguage(selectedFile.name),
                            search: $editorSearchText,
                            ref: $editorViewRef,

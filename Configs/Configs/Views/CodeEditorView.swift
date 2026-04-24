@@ -36,22 +36,102 @@ class CustomTextView: NSTextView {
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event) ?? NSMenu()
 
-        let formatItem = NSMenuItem(
-            title: L10n.tr("format.document"),
-            action: #selector(formatDocumentAction(_:)),
-            keyEquivalent: ""
-        )
-        formatItem.target = self
-        formatItem.isEnabled = coordinator?.canFormatCurrentDocument() ?? false
+        var insertIndex = 0
 
-        // Put our action on top, VSCode-style.
-        menu.insertItem(formatItem, at: 0)
-        menu.insertItem(.separator(), at: 1)
+        if let coordinator, let filePath = coordinator.currentFilePath() {
+            let openInFinder = NSMenuItem(
+                title: L10n.tr("open.in.finder"),
+                action: #selector(openInFinderAction(_:)),
+                keyEquivalent: ""
+            )
+            openInFinder.target = self
+            openInFinder.representedObject = filePath
+            menu.insertItem(openInFinder, at: insertIndex)
+            insertIndex += 1
+
+            let openInTerminal = NSMenuItem(
+                title: L10n.tr("open.in.terminal"),
+                action: #selector(openInTerminalAction(_:)),
+                keyEquivalent: ""
+            )
+            openInTerminal.target = self
+            openInTerminal.representedObject = filePath
+            menu.insertItem(openInTerminal, at: insertIndex)
+            insertIndex += 1
+
+            let copyPath = NSMenuItem(
+                title: L10n.tr("copy.path"),
+                action: #selector(copyPathAction(_:)),
+                keyEquivalent: ""
+            )
+            copyPath.target = self
+            copyPath.representedObject = filePath
+            menu.insertItem(copyPath, at: insertIndex)
+            insertIndex += 1
+
+            if coordinator.isVSCodeInstalled() {
+                let openInVSCode = NSMenuItem(
+                    title: L10n.tr("open.in.vscode"),
+                    action: #selector(openInVSCodeAction(_:)),
+                    keyEquivalent: ""
+                )
+                openInVSCode.target = self
+                openInVSCode.representedObject = filePath
+                menu.insertItem(openInVSCode, at: insertIndex)
+                insertIndex += 1
+            }
+
+            menu.insertItem(.separator(), at: insertIndex)
+            insertIndex += 1
+        }
+
+        // Only show format for files we can format.
+        if coordinator?.canFormatCurrentDocument() == true {
+            let formatItem = NSMenuItem(
+                title: L10n.tr("format.document"),
+                action: #selector(formatDocumentAction(_:)),
+                keyEquivalent: ""
+            )
+            formatItem.target = self
+            menu.insertItem(formatItem, at: insertIndex)
+            insertIndex += 1
+            menu.insertItem(.separator(), at: insertIndex)
+        }
+
         return menu
     }
 
     @objc private func formatDocumentAction(_ sender: Any?) {
         coordinator?.formatDocumentForSaveIfNeeded()
+    }
+
+    @objc private func openInFinderAction(_ sender: Any?) {
+        guard let path = (sender as? NSMenuItem)?.representedObject as? String else { return }
+        let url = URL(fileURLWithPath: path)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @objc private func openInTerminalAction(_ sender: Any?) {
+        guard let path = (sender as? NSMenuItem)?.representedObject as? String else { return }
+        let fileURL = URL(fileURLWithPath: path)
+        let dirURL = fileURL.deletingLastPathComponent()
+        guard let terminalURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            return
+        }
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([dirURL], withApplicationAt: terminalURL, configuration: config)
+    }
+
+    @objc private func openInVSCodeAction(_ sender: Any?) {
+        guard let path = (sender as? NSMenuItem)?.representedObject as? String else { return }
+        coordinator?.openInVSCode(path: path)
+    }
+
+    @objc private func copyPathAction(_ sender: Any?) {
+        guard let path = (sender as? NSMenuItem)?.representedObject as? String else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(path, forType: .string)
     }
     
     override func keyDown(with event: NSEvent) {
@@ -160,6 +240,7 @@ struct CodeEditorView: NSViewRepresentable {
     private static let largeTextLengthThreshold = 120_000
 
     @Binding var text: String
+    var filePath: String? = nil
     var fileExtension: String
     @Binding var search: String
     @Binding var ref: Ref?
@@ -682,6 +763,32 @@ struct CodeEditorView: NSViewRepresentable {
         func canFormatCurrentDocument() -> Bool {
             let ext = parent.fileExtension.lowercased()
             return ext == "json" || ext == "jsonl"
+        }
+
+        func currentFilePath() -> String? {
+            parent.filePath
+        }
+
+        func isVSCodeInstalled() -> Bool {
+            vsCodeApplicationURL() != nil
+        }
+
+        func openInVSCode(path: String) {
+            guard let appURL = vsCodeApplicationURL() else { return }
+            let fileURL = URL(fileURLWithPath: path)
+            let config = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: config)
+        }
+
+        private func vsCodeApplicationURL() -> URL? {
+            // Stable bundle identifiers for VSCode variants.
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.VSCode") {
+                return url
+            }
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.VSCodeInsiders") {
+                return url
+            }
+            return nil
         }
 
         private static func formatJSON(_ text: String) -> String? {
