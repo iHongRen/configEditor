@@ -23,8 +23,8 @@ A **macOS** config file manager that lets you quickly view, edit, and manage con
 - **Instant Effect**: When editing shell config files like `.zshrc`, the app automatically executes `source` on save, making changes take effect immediately
 - **Version History**: Uses Git to automatically track all edits, with full history view, diff comparison, and one-click restore
 - **File Management**: Add custom files, pin frequently used configs, and organize with color tags
-- **Code Editor**: Syntax highlighting for multiple file types, search, zoom, and dark mode support
-- **Context Menu**: Right-click files to quickly open in Finder, Terminal, VSCode, and more
+- **Code Editor**: Syntax highlighting for multiple file types, search, zoom, dark mode support, and line numbers
+- **Context Menu**: Right-click files to quickly open in Finder, Terminal, VSCode, and other apps
 - **Color Tags**: Add short colored text tags to files for easy organization
 - **Localization**: Built-in Chinese and English support, defaults to the system language, and can be changed manually from the About page
 - 
