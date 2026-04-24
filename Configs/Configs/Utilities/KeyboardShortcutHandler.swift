@@ -97,7 +97,9 @@ struct KeyboardShortcutHandler: ViewModifier {
                         }
                     }
                     if event.keyCode == 36 || event.keyCode == 76 { // Enter or Return
-                        if showEditorSearchBar {
+                        // Only intercept Enter when the search TextField is focused.
+                        // Otherwise, Enter should be delivered to the editor to insert a newline.
+                        if showEditorSearchBar && searchFieldFocused {
                             editorViewRef?.findNext(editorSearchText)
                             return nil
                         }
