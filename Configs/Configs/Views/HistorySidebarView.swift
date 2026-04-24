@@ -61,6 +61,18 @@ struct HistorySidebarView: View {
             let commitHash = notification.userInfo?["commitHash"] as? String
             loadCommits(selecting: commitHash)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .historyNavigateCommit)) { notification in
+            guard let updatedConfigPath = notification.userInfo?["configPath"] as? String,
+                  updatedConfigPath == configPath else {
+                return
+            }
+
+            let offset = notification.userInfo?["offset"] as? Int ?? 0
+            guard offset != 0 else {
+                return
+            }
+            selectCommit(offset: offset)
+        }
         .alert(L10n.tr("restore.version"), isPresented: $showRestoreConfirmation) {
             Button(L10n.tr("cancel"), role: .cancel) { }
             Button(L10n.tr("restore"), role: .destructive) {
@@ -184,14 +196,25 @@ struct HistorySidebarView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(commits) { commit in
-                            commitRowView(commit: commit)
-                                .padding(.horizontal, 16)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(commits) { commit in
+                                commitRowView(commit: commit)
+                                    .id(commit.hash)
+                                    .padding(.horizontal, 16)
+                            }
+                        }
+                        .padding(.vertical, 12)
+                    }
+                    .compatibleOnChange(of: selectedCommit?.hash) { _, newHash in
+                        guard let newHash else {
+                            return
+                        }
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            proxy.scrollTo(newHash, anchor: .center)
                         }
                     }
-                    .padding(.vertical, 12)
                 }
                 .background(Color(NSColor.textBackgroundColor).opacity(0.5))
             }
@@ -554,6 +577,29 @@ struct HistorySidebarView: View {
         } else {
             print("No commits found")
             selectedCommit = nil
+        }
+    }
+
+    private func selectCommit(offset: Int) {
+        guard !commits.isEmpty else {
+            return
+        }
+
+        let currentIndex: Int
+        if let selectedCommit,
+           let idx = commits.firstIndex(where: { $0.hash == selectedCommit.hash }) {
+            currentIndex = idx
+        } else {
+            currentIndex = 0
+        }
+
+        let nextIndex = max(0, min(commits.count - 1, currentIndex + offset))
+        guard nextIndex != currentIndex else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            selectedCommit = commits[nextIndex]
         }
     }
     

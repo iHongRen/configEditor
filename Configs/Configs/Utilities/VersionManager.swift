@@ -9,6 +9,7 @@ import Foundation
 
 extension Notification.Name {
     static let configVersionHistoryDidChange = Notification.Name("configVersionHistoryDidChange")
+    static let historyNavigateCommit = Notification.Name("historyNavigateCommit")
 }
 
 struct Commit: Identifiable, Hashable {

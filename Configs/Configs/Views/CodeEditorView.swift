@@ -827,6 +827,14 @@ struct CodeEditorView: NSViewRepresentable {
             tv.setSelectedRange(NSRange(location: 0, length: 0))
             tv.scrollRangeToVisible(NSRange(location: 0, length: 0))
         }
+
+        func resignFirstResponder() {
+            guard let tv = textView else { return }
+            guard let window = tv.window else { return }
+            if window.firstResponder === tv {
+                window.makeFirstResponder(nil)
+            }
+        }
     }
 }
 

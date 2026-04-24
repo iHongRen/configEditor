@@ -18,10 +18,20 @@ struct KeyboardShortcutHandler: ViewModifier {
     @Binding var originalFileContent: String
     @Binding var selectedFile: ConfigFile?
     @Binding var fileModificationDate: Date?
+    @Binding var showHistorySidebar: Bool
     let selectPreviousFile: () -> Void
     let selectNextFile: () -> Void
 
     @State private var keyMonitor: Any?
+
+    private func isEditorFirstResponder() -> Bool {
+        // Our editor is a CustomTextView (subclass of NSTextView).
+        // We only treat that as "editing config file".
+        if NSApp.keyWindow?.firstResponder is CustomTextView {
+            return true
+        }
+        return false
+    }
 
     private func isTextInputFirstResponder() -> Bool {
         // NSTextView covers CodeEditorView and also the field editor used by many SwiftUI text inputs.
@@ -95,6 +105,29 @@ struct KeyboardShortcutHandler: ViewModifier {
                     if !event.modifierFlags.contains(.command) &&
                         !event.modifierFlags.contains(.option) &&
                         !event.modifierFlags.contains(.control) {
+                        // When History is open and we're not actively editing the config file, Up/Down should
+                        // navigate the commits list first (instead of switching files).
+                        if showHistorySidebar && !isEditorFirstResponder() && !searchFieldFocused {
+                            if let configPath = selectedFile?.path {
+                                if event.keyCode == 126 { // Up arrow
+                                    NotificationCenter.default.post(
+                                        name: .historyNavigateCommit,
+                                        object: nil,
+                                        userInfo: ["configPath": configPath, "offset": -1]
+                                    )
+                                    return nil
+                                }
+                                if event.keyCode == 125 { // Down arrow
+                                    NotificationCenter.default.post(
+                                        name: .historyNavigateCommit,
+                                        object: nil,
+                                        userInfo: ["configPath": configPath, "offset": 1]
+                                    )
+                                    return nil
+                                }
+                            }
+                        }
+
                         // When editing (or typing in any text input), arrow keys should stay in that control
                         // instead of switching the selected file in the sidebar.
                         if isTextInputFirstResponder() {
@@ -132,6 +165,7 @@ extension View {
         originalFileContent: Binding<String>,
         selectedFile: Binding<ConfigFile?>,
         fileModificationDate: Binding<Date?>,
+        showHistorySidebar: Binding<Bool>,
         selectPreviousFile: @escaping () -> Void,
         selectNextFile: @escaping () -> Void
     ) -> some View {
@@ -146,6 +180,7 @@ extension View {
                 originalFileContent: originalFileContent,
                 selectedFile: selectedFile,
                 fileModificationDate: fileModificationDate,
+                showHistorySidebar: showHistorySidebar,
                 selectPreviousFile: selectPreviousFile,
                 selectNextFile: selectNextFile
             )

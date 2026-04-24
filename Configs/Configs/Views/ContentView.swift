@@ -340,6 +340,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSelectedFileIfNeeded()
         }
+        .compatibleOnChange(of: showHistorySidebar) { _, isShown in
+            if isShown {
+                // When opening the history sidebar, blur the editor so arrow keys can navigate commits.
+                editorViewRef?.resignFirstResponder()
+            }
+        }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls):
@@ -361,6 +367,7 @@ struct ContentView: View {
             originalFileContent: $originalFileContent,
             selectedFile: $selectedFile,
             fileModificationDate: $fileModificationDate,
+            showHistorySidebar: $showHistorySidebar,
             selectPreviousFile: {
                 selectVisibleFile(offset: -1)
             },
