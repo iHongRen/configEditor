@@ -12,11 +12,65 @@ struct HistorySidebarView: View {
     private static let largeInitialCommitThreshold = 512 * 1024
     private static let initialCommitPreviewLineCount = 50
 
+    private enum LayoutMode {
+        case narrow
+        case compact
+        case regular
+    }
+
+    private enum VersionAction {
+        case undo(target: Commit)
+        case restore(target: Commit)
+
+        var targetCommit: Commit {
+            switch self {
+            case .undo(let target), .restore(let target):
+                return target
+            }
+        }
+
+        var isUndo: Bool {
+            if case .undo = self {
+                return true
+            }
+            return false
+        }
+
+        var confirmationTitle: String {
+            isUndo ? L10n.tr("undo.version") : L10n.tr("restore.version")
+        }
+
+        var confirmationButtonTitle: String {
+            isUndo ? L10n.tr("undo") : L10n.tr("restore")
+        }
+
+        var inProgressTitle: String {
+            isUndo ? L10n.tr("undoing") : L10n.tr("restoring")
+        }
+
+        var helpTitle: String {
+            isUndo ? L10n.tr("undo.this.change") : L10n.tr("restore.this.version")
+        }
+
+        var inProgressHelpTitle: String {
+            isUndo ? L10n.tr("undoing.version") : L10n.tr("restoring.version")
+        }
+
+        var confirmationMessage: String {
+            let shortHash = String(targetCommit.hash.prefix(7))
+            return isUndo ? L10n.tr("undo.version.message", shortHash) : L10n.tr("restore.version.message", shortHash)
+        }
+
+        var successMessage: String {
+            isUndo ? L10n.tr("version.undone.successfully") : L10n.tr("version.restored.successfully")
+        }
+    }
+
     @ObservedObject private var localization = LocalizationSettings.shared
     let configPath: String
     @Binding var showHistorySidebar: Bool
     let globalZoomLevel: Double
-    var onRestore: (String, String) -> Void // (content, commitHash)
+    var onApplyVersion: (String, String, Bool) -> Void
     
     @State private var commits: [Commit] = []
     @State private var selectedCommit: Commit?
@@ -25,13 +79,18 @@ struct HistorySidebarView: View {
     @State private var splitPosition: CGFloat = 0.4 // 40% for commit list, 60% for diff view
     @State private var hoveredCommit: Commit?
     @State private var isLoadingDiff = false
-    @State private var showRestoreConfirmation = false
-    @State private var isRestoring = false
+    @State private var showVersionActionConfirmation = false
+    @State private var isApplyingVersionAction = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            headerView
-            resizableContentView
+        GeometryReader { geometry in
+            let mode = layoutMode(for: geometry.size.width)
+
+            VStack(alignment: .leading, spacing: 0) {
+                headerView(mode: mode)
+                resizableContentView(mode: mode)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -43,14 +102,6 @@ struct HistorySidebarView: View {
         }
         .compatibleOnChange(of: configPath) { _, _ in
             loadCommits()
-        }
-        .compatibleOnChange(of: selectedCommit) { _, newCommit in
-            guard let commit = newCommit else {
-                selectedCommitContent = nil
-                selectedCommitDiff = nil
-                return
-            }
-            loadCommitDetails(commit)
         }
         .onReceive(NotificationCenter.default.publisher(for: .configVersionHistoryDidChange)) { notification in
             guard let updatedConfigPath = notification.userInfo?["configPath"] as? String,
@@ -73,58 +124,70 @@ struct HistorySidebarView: View {
             }
             selectCommit(offset: offset)
         }
-        .alert(L10n.tr("restore.version"), isPresented: $showRestoreConfirmation) {
+        .alert(currentVersionAction()?.confirmationTitle ?? L10n.tr("restore.version"), isPresented: $showVersionActionConfirmation) {
             Button(L10n.tr("cancel"), role: .cancel) { }
-            Button(L10n.tr("restore"), role: .destructive) {
-                if let content = selectedCommitContent, let commit = selectedCommit, !isRestoring {
-                    isRestoring = true
-           
-                    onRestore(content, commit.hash)
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.isRestoring = false
-                        self.showRestoreSuccess()
-                    }
+            if let action = currentVersionAction() {
+                Button(action.confirmationButtonTitle, role: action.isUndo ? .destructive : nil) {
+                    performVersionAction(action)
                 }
             }
         } message: {
-            if let commit = selectedCommit {
-                Text(L10n.tr("restore.version.message", String(commit.hash.prefix(7))))
+            if let action = currentVersionAction() {
+                Text(action.confirmationMessage)
             }
         }
     }
     
-    private var headerView: some View {
-        HStack(spacing: 12) {
-            // Icon with gradient background
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.accentColor.opacity(0.8), Color.accentColor],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+    private func layoutMode(for width: CGFloat) -> LayoutMode {
+        if width < 320 * globalZoomLevel {
+            return .narrow
+        }
+        if width < 500 * globalZoomLevel {
+            return .compact
+        }
+        return .regular
+    }
+
+    private func headerView(mode: LayoutMode) -> some View {
+        let iconSize = mode == .narrow ? 24 * globalZoomLevel : 28 * globalZoomLevel
+        let horizontalPadding = (mode == .narrow ? 6 : 12) * globalZoomLevel
+
+        return HStack(spacing: (mode == .narrow ? 6 : 12) * globalZoomLevel) {
+            if mode != .narrow {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.accentColor.opacity(0.8), Color.accentColor],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 28 * globalZoomLevel, height: 28 * globalZoomLevel)
-                
-                Image(systemName: "clock")
-                    .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
-                    .foregroundColor(.white)
+                        .frame(width: iconSize, height: iconSize)
+
+                    Image(systemName: "clock")
+                        .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .layoutPriority(1)
             }
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.tr("version.history"))
                     .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
-                
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
                 Text(L10n.tr("version.count", commits.count))
                     .font(.system(size: 11 * globalZoomLevel, weight: .medium))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
-            
-            Spacer()
-            
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(0)
+
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showHistorySidebar = false
@@ -133,16 +196,18 @@ struct HistorySidebarView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 12 * globalZoomLevel, weight: .medium))
                     .foregroundColor(.secondary)
-                    .frame(width: 28 * globalZoomLevel, height: 28 * globalZoomLevel)
+                    .frame(width: iconSize, height: iconSize)
                     .background(Color.secondary.opacity(0.15))
                     .clipShape(Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
             .help(L10n.tr("close.history"))
+            .layoutPriority(10)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, mode == .narrow ? 8 : 12)
+        .frame(maxWidth: .infinity)
         .background(
             Rectangle()
                 .fill(Color(NSColor.windowBackgroundColor).opacity(0.9))
@@ -154,18 +219,22 @@ struct HistorySidebarView: View {
                 )
         )
     }
-    
-    private var resizableContentView: some View {
+
+    private func resizableContentView(mode: LayoutMode) -> some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                commitListView(geometry: geometry)
-                bottomContentView(geometry: geometry)
+                commitListView(geometry: geometry, mode: mode)
+                bottomContentView(geometry: geometry, mode: mode)
             }
         }
     }
     
-    private func commitListView(geometry: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
+    private func commitListView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
+        let horizontalPadding = (mode == .narrow ? 6 : (mode == .compact ? 10 : 16)) * globalZoomLevel
+        let verticalPadding = (mode == .narrow ? 8 : 12) * globalZoomLevel
+        let minHeight = mode == .narrow ? 96 * globalZoomLevel : 120 * globalZoomLevel
+
+        return VStack(spacing: 0) {
             // Commits list
             if commits.isEmpty {
                 VStack(spacing: 16) {
@@ -200,12 +269,12 @@ struct HistorySidebarView: View {
                     ScrollView {
                         LazyVStack(spacing: 8) {
                             ForEach(commits) { commit in
-                                commitRowView(commit: commit)
+                                commitRowView(commit: commit, mode: mode)
                                     .id(commit.hash)
-                                    .padding(.horizontal, 16)
+                                    .padding(.horizontal, horizontalPadding)
                             }
                         }
-                        .padding(.vertical, 12)
+                        .padding(.vertical, verticalPadding)
                     }
                     .compatibleOnChange(of: selectedCommit?.hash) { _, newHash in
                         guard let newHash else {
@@ -219,7 +288,7 @@ struct HistorySidebarView: View {
                 .background(Color(NSColor.textBackgroundColor).opacity(0.5))
             }
         }
-        .frame(height: max(120, geometry.size.height * splitPosition))
+        .frame(height: max(minHeight, geometry.size.height * splitPosition))
         .overlay(
             Rectangle()
                 .fill(Color.secondary.opacity(0.2))
@@ -228,11 +297,15 @@ struct HistorySidebarView: View {
         )
     }
     
-    private func commitRowView(commit: Commit) -> some View {
-        let isSelected = selectedCommit?.id == commit.id
-        let isHovered = hoveredCommit?.id == commit.id
-        
-        return HStack(spacing: 12) {
+    private func commitRowView(commit: Commit, mode: LayoutMode) -> some View {
+        let isSelected = selectedCommit?.hash == commit.hash
+        let isHovered = hoveredCommit?.hash == commit.hash
+        let rowSpacing = (mode == .regular ? 12 : 8) * globalZoomLevel
+        let rowPadding = (mode == .narrow ? 8 : (mode == .compact ? 10 : 16)) * globalZoomLevel
+        let metadataSpacing = (mode == .regular ? 12 : 4) * globalZoomLevel
+        let isCompact = mode != .regular
+
+        return HStack(alignment: .top, spacing: rowSpacing) {
             // Timeline indicator
             VStack(spacing: 0) {
                 Circle()
@@ -244,53 +317,50 @@ struct HistorySidebarView: View {
                             .frame(width: 12 * globalZoomLevel, height: 12 * globalZoomLevel)
                     )
                 
-                if commit.id != commits.last?.id {
+                if commit.hash != commits.last?.hash {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.4))
-                        .frame(width: 1, height: 40 * globalZoomLevel)
+                        .frame(width: 1, height: (isCompact ? 34 : 40) * globalZoomLevel)
                 }
             }
             
             // Commit content
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: isCompact ? 6 : 8) {
                 // Commit message
                 Text(commit.message)
                     .font(.system(size: 13 * globalZoomLevel, weight: .medium))
                     .foregroundColor(.primary)
-                    .lineLimit(2)
+                    .lineLimit(mode == .narrow ? 1 : 2)
+                    .truncationMode(.tail)
                     .multilineTextAlignment(.leading)
-                
+
                 // Metadata row
-                HStack(spacing: 12) {
-                    // Hash badge
-                    Text(commit.hash.prefix(7))
-                        .font(.system(size: 10 * globalZoomLevel, weight: .medium, design: .monospaced))
-                        .foregroundColor(isSelected ? Color.accentColor : Color.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.2))
-                        )
-                    
-                    Spacer()
-                    
-                    // Date
-                    Text(commit.date)
-                        .font(.system(size: 11 * globalZoomLevel, weight: .medium))
-                        .foregroundColor(.secondary)
+                Group {
+                    if isCompact {
+                        VStack(alignment: .leading, spacing: metadataSpacing) {
+                            commitHashBadge(commit: commit, isSelected: isSelected)
+                            commitDateText(commit: commit)
+                        }
+                    } else {
+                        HStack(spacing: metadataSpacing) {
+                            commitHashBadge(commit: commit, isSelected: isSelected)
+                            Spacer(minLength: 8)
+                            commitDateText(commit: commit)
+                        }
+                    }
                 }
             }
-            
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
+        .padding(.vertical, isCompact ? 10 : 12)
+        .padding(.horizontal, rowPadding)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(
-                    isSelected ? 
-                        Color.accentColor.opacity(0.08) : 
+                    isSelected ?
+                        Color.accentColor.opacity(0.08) :
                         (isHovered ? Color.secondary.opacity(0.1) : Color.clear)
                 )
                 .overlay(
@@ -304,7 +374,7 @@ struct HistorySidebarView: View {
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedCommit = commit
+                selectCommit(commit)
             }
         }
         .onHover { hovering in
@@ -316,22 +386,50 @@ struct HistorySidebarView: View {
 //        .animation(.easeInOut(duration: 0.15), value: isSelected)
 //        .animation(.easeInOut(duration: 0.1), value: isHovered)
     }
+
+    private func commitHashBadge(commit: Commit, isSelected: Bool) -> some View {
+        Text(commit.hash.prefix(7))
+            .font(.system(size: 10 * globalZoomLevel, weight: .medium, design: .monospaced))
+            .foregroundColor(isSelected ? Color.accentColor : Color.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.2))
+            )
+    }
+
+    private func commitDateText(commit: Commit) -> some View {
+        Text(commit.date)
+            .font(.system(size: 11 * globalZoomLevel, weight: .medium))
+            .foregroundColor(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+    }
+
     
 
     
-    private func bottomContentView(geometry: GeometryProxy) -> some View {
-        Group {
+    private func bottomContentView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
+        let minHeight = mode == .narrow ? 132 * globalZoomLevel : 160 * globalZoomLevel
+
+        return Group {
             if selectedCommit != nil {
-                diffContentView(geometry: geometry)
+                diffContentView(geometry: geometry, mode: mode)
             } else {
-                emptyStateView(geometry: geometry)
+                emptyStateView(geometry: geometry, mode: mode)
             }
         }
-        .frame(height: max(160, geometry.size.height * (1 - splitPosition)))
+        .frame(height: max(minHeight, geometry.size.height * (1 - splitPosition)))
     }
-    
-    private func diffContentView(geometry: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
+
+    private func diffContentView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
+        let action = currentVersionAction()
+        let isCompact = mode != .regular
+        let headerHeight = (mode == .narrow ? 40 : 42) * globalZoomLevel
+
+        return VStack(spacing: 0) {
             // Diff header with drag functionality
             ZStack {
               
@@ -361,118 +459,61 @@ struct HistorySidebarView: View {
                             }
                     )
                 
-                // Header
-                HStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        Button(action: {
-                            if let diff = selectedCommitDiff {
-                                copyDiffToClipboard(diff)
-                            } else if let content = selectedCommitContent {
-                                copyContentToClipboard(content)
-                            }
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 20 * globalZoomLevel, height: 20 * globalZoomLevel)
-                                
-                                Image(systemName: "doc.text")
-                                    .font(.system(size: 12 * globalZoomLevel, weight: .medium))
-                                    .foregroundColor(Color.accentColor)
-                            }
+                HStack(spacing: (mode == .narrow ? 6 : (mode == .compact ? 8 : 12)) * globalZoomLevel) {
+                    historyIconButton(
+                        systemImage: "doc.text",
+                        foregroundColor: .accentColor,
+                        background: Color.accentColor.opacity(0.15),
+                        help: L10n.tr("copy.content.to.clipboard")
+                    ) {
+                        if let diff = selectedCommitDiff {
+                            copyDiffToClipboard(diff)
+                        } else if let content = selectedCommitContent {
+                            copyContentToClipboard(content)
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        .help(L10n.tr("copy.content.to.clipboard"))
-                        .onHover { isHovering in
-                            DispatchQueue.main.async {
-                                if isHovering {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
-                            }
-                        }
-                        
+                    }
+                    .layoutPriority(mode == .narrow ? 0 : 1)
+
+                    if mode != .narrow {
                         Text(L10n.tr("changes"))
                             .font(.system(size: 13 * globalZoomLevel, weight: .semibold))
                             .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .layoutPriority(1)
                     }
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            openGitProjectInFinder()
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
-                                Text(L10n.language == .chinese ? "Git 项目" : "Git Project")
-                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
-                            }
-                            .foregroundColor(.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.accentColor.opacity(0.12))
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .help(L10n.tr("open.git.project.in.finder"))
 
-                        // Restore button
-                        Button(action: {
-                            if !isRestoring {
-                                showRestoreConfirmation = true
-                            }
-                        }) {
-                            HStack(spacing: 5) {
-                                if isRestoring {
-                                    ProgressView()
-                                        .scaleEffect(0.4)
-                                        .frame(width: 8 * globalZoomLevel, height: 8 * globalZoomLevel)
-                                } else {
-                                    Image(systemName: "arrow.counterclockwise")
-                                        .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
-                                }
-                                Text(isRestoring ? L10n.tr("restoring") : L10n.tr("restore"))
-                                    .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: isRestoring ? 
-                                                [Color.secondary, Color.secondary.opacity(0.8)] :
-                                                [Color.accentColor, Color.accentColor.opacity(0.8)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    .shadow(color: (isRestoring ? Color.secondary : Color.accentColor).opacity(0.2), radius: 3, x: 0, y: 1)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .disabled(isRestoring)
-                        .help(isRestoring ? L10n.tr("restoring.version") : L10n.tr("restore.this.version"))
-                        .onHover { isHovering in
-                            DispatchQueue.main.async {
-                                if isHovering && !isRestoring {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
+                    Spacer(minLength: (mode == .narrow ? 2 : (mode == .compact ? 4 : 12)) * globalZoomLevel)
+
+                    HStack(spacing: (mode == .regular ? 12 : 6) * globalZoomLevel) {
+                        historyHeaderButton(
+                            systemImage: "folder",
+                            text: mode == .regular ? L10n.tr("git.project") : nil,
+                            foregroundColor: .accentColor,
+                            background: Color.accentColor.opacity(0.12),
+                            help: L10n.tr("open.git.project.in.finder"),
+                            action: openGitProjectInFinder
+                        )
+
+                        historyHeaderButton(
+                            systemImage: action?.isUndo == true ? "arrow.counterclockwise" : "clock.arrow.circlepath",
+                            text: mode == .regular ? (isApplyingVersionAction ? action?.inProgressTitle : action?.confirmationButtonTitle) : nil,
+                            foregroundColor: .white,
+                            background: isApplyingVersionAction ? Color.secondary : Color.accentColor,
+                            help: isApplyingVersionAction ? (action?.inProgressHelpTitle ?? L10n.tr("restoring.version")) : (action?.helpTitle ?? L10n.tr("restore.this.version")),
+                            disabled: isApplyingVersionAction || action == nil,
+                            showsProgress: isApplyingVersionAction
+                        ) {
+                            if !isApplyingVersionAction {
+                                showVersionActionConfirmation = true
                             }
                         }
                     }
+                    .layoutPriority(10)
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, (mode == .narrow ? 6 : (mode == .compact ? 8 : 12)) * globalZoomLevel)
             }
-            .frame(height: 36 * globalZoomLevel)
+            .frame(height: headerHeight)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
             .overlay(
                 Rectangle()
@@ -481,76 +522,178 @@ struct HistorySidebarView: View {
                 alignment: .bottom
             )
             
-            // Diff content
-            ScrollView {
+            Group {
                 if let diff = selectedCommitDiff {
                     DiffTextView(diffString: diff, fontSize: 13 * globalZoomLevel)
                 } else if isLoadingDiff {
-                    VStack(spacing: 16) {
-                        Spacer()
-                        
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        
-                        Text(L10n.tr("loading.changes"))
-                            .font(.system(size: 13 * globalZoomLevel, weight: .medium))
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    centeredDiffStateView(
+                        mode: mode,
+                        spacing: 16,
+                        icon: AnyView(ProgressView().scaleEffect(0.8)),
+                        text: L10n.tr("loading.changes")
+                    )
                 } else {
-                    VStack(spacing: 16) {
-                        Spacer()
-                        
-                        Text(L10n.tr("no.changes.display"))
-                            .font(.system(size: 13 * globalZoomLevel, weight: .medium))
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    centeredDiffStateView(
+                        mode: mode,
+                        spacing: 16,
+                        icon: nil,
+                        text: L10n.tr("no.changes.display")
+                    )
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(NSColor.textBackgroundColor).opacity(0.7))
         }
     }
     
 
     
-    private func emptyStateView(geometry: GeometryProxy) -> some View {
-        VStack(spacing: 20) {
+    private func historyHeaderButton(
+        systemImage: String,
+        text: String?,
+        foregroundColor: Color,
+        background: Color,
+        help: String,
+        disabled: Bool = false,
+        showsProgress: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5 * globalZoomLevel) {
+                if showsProgress {
+                    ProgressView()
+                        .scaleEffect(0.4)
+                        .frame(width: 8 * globalZoomLevel, height: 8 * globalZoomLevel)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 10 * globalZoomLevel, weight: .semibold))
+                }
+
+                if let text {
+                    Text(text)
+                        .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .foregroundColor(foregroundColor)
+            .frame(minWidth: text == nil ? 26 * globalZoomLevel : 0)
+            .padding(.horizontal, (text == nil ? 6 : 8) * globalZoomLevel)
+            .padding(.vertical, 4 * globalZoomLevel)
+            .background(
+                RoundedRectangle(cornerRadius: 6 * globalZoomLevel)
+                    .fill(background)
+                    .shadow(color: background.opacity(0.2), radius: 3, x: 0, y: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(disabled)
+        .help(help)
+        .onHover { isHovering in
+            DispatchQueue.main.async {
+                if isHovering && !disabled {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+        }
+    }
+
+    private func historyIconButton(
+        systemImage: String,
+        foregroundColor: Color,
+        background: Color,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(background)
+                    .frame(width: 22 * globalZoomLevel, height: 22 * globalZoomLevel)
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 12 * globalZoomLevel, weight: .medium))
+                    .foregroundColor(foregroundColor)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .help(help)
+        .onHover { isHovering in
+            DispatchQueue.main.async {
+                if isHovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+        }
+    }
+
+    private func centeredDiffStateView(mode: LayoutMode, spacing: CGFloat, icon: AnyView?, text: String) -> some View {
+        VStack(spacing: spacing * globalZoomLevel) {
             Spacer()
-            
+
+            if let icon {
+                icon
+            }
+
+            Text(text)
+                .font(.system(size: 13 * globalZoomLevel, weight: .medium))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(mode == .narrow ? 2 : 3)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, (mode == .narrow ? 10 : 16) * globalZoomLevel)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyStateView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
+        let outerSize = mode == .narrow ? 56 * globalZoomLevel : 80 * globalZoomLevel
+        let innerSize = mode == .narrow ? 42 * globalZoomLevel : 60 * globalZoomLevel
+        let iconSize = mode == .narrow ? 20 * globalZoomLevel : 28 * globalZoomLevel
+        let horizontalPadding = mode == .narrow ? 12 * globalZoomLevel : 24 * globalZoomLevel
+
+        return VStack(spacing: mode == .narrow ? 12 : 20) {
+            Spacer(minLength: 8)
+
             ZStack {
                 Circle()
                     .fill(Color.secondary.opacity(0.2))
-                    .frame(width: 80 * globalZoomLevel, height: 80 * globalZoomLevel)
-                
+                    .frame(width: outerSize, height: outerSize)
+
                 Circle()
                     .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 60 * globalZoomLevel, height: 60 * globalZoomLevel)
-                
+                    .frame(width: innerSize, height: innerSize)
+
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 28 * globalZoomLevel, weight: .medium))
+                    .font(.system(size: iconSize, weight: .medium))
                     .foregroundColor(.secondary)
             }
-            
-            VStack(spacing: 10) {
+
+            VStack(spacing: mode == .narrow ? 6 : 10) {
                 Text(L10n.tr("select.a.commit"))
-                    .font(.system(size: 16 * globalZoomLevel, weight: .semibold))
+                    .font(.system(size: (mode == .narrow ? 14 : 16) * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
-                
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
                 Text(L10n.tr("select.commit.description"))
-                    .font(.system(size: 12 * globalZoomLevel))
+                    .font(.system(size: (mode == .narrow ? 11 : 12) * globalZoomLevel))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .padding(.horizontal, 24)
+                    .lineLimit(mode == .narrow ? 2 : 3)
+                    .minimumScaleFactor(0.85)
+                    .padding(.horizontal, horizontalPadding)
             }
-            
-            Spacer()
+
+            Spacer(minLength: 8)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.textBackgroundColor).opacity(0.5))
     }
     
@@ -561,22 +704,22 @@ struct HistorySidebarView: View {
         if let commitHash,
            let matchedCommit = commits.first(where: { $0.hash == commitHash }) {
             print("Selecting updated commit: \(matchedCommit.hash)")
-            selectedCommit = matchedCommit
+            selectCommit(matchedCommit)
             return
         }
 
         if let currentSelectedHash = selectedCommit?.hash,
            let matchedCommit = commits.first(where: { $0.hash == currentSelectedHash }) {
-            selectedCommit = matchedCommit
+            selectCommit(matchedCommit)
             return
         }
 
         if let firstCommit = commits.first {
             print("Selecting first commit: \(firstCommit.hash)")
-            selectedCommit = firstCommit
+            selectCommit(firstCommit)
         } else {
             print("No commits found")
-            selectedCommit = nil
+            selectCommit(nil)
         }
     }
 
@@ -599,10 +742,65 @@ struct HistorySidebarView: View {
         }
 
         withAnimation(.easeInOut(duration: 0.18)) {
-            selectedCommit = commits[nextIndex]
+            selectCommit(commits[nextIndex])
         }
     }
-    
+
+    private func currentVersionAction() -> VersionAction? {
+        guard let selectedCommit,
+              let selectedIndex = commits.firstIndex(where: { $0.hash == selectedCommit.hash }) else {
+            return nil
+        }
+
+        if selectedIndex == 0 {
+            let previousIndex = selectedIndex + 1
+            guard commits.indices.contains(previousIndex) else {
+                return nil
+            }
+            return .undo(target: commits[previousIndex])
+        }
+
+        return .restore(target: selectedCommit)
+    }
+
+    private func performVersionAction(_ action: VersionAction) {
+        guard !isApplyingVersionAction else {
+            return
+        }
+
+        isApplyingVersionAction = true
+        let targetCommit = action.targetCommit
+        DispatchQueue.global(qos: .userInitiated).async {
+            let content = VersionManager.shared.getContentForCommit(targetCommit, for: configPath)
+
+            DispatchQueue.main.async {
+                if let content {
+                    onApplyVersion(content, targetCommit.hash, action.isUndo)
+                    showVersionActionSuccess(action)
+                }
+                self.isApplyingVersionAction = false
+            }
+        }
+    }
+
+    private func selectCommit(_ commit: Commit?) {
+        let previousHash = selectedCommit?.hash
+        selectedCommit = commit
+
+        guard let commit else {
+            selectedCommitContent = nil
+            selectedCommitDiff = nil
+            isLoadingDiff = false
+            return
+        }
+
+        guard previousHash != commit.hash || selectedCommitContent == nil else {
+            return
+        }
+
+        loadCommitDetails(commit)
+    }
+
     private func loadCommitDetails(_ commit: Commit) {
         isLoadingDiff = true
         selectedCommitContent = nil
@@ -671,8 +869,8 @@ struct HistorySidebarView: View {
         print(message)
     }
     
-    private func showRestoreSuccess() {
-        print(L10n.tr("version.restored.successfully"))
+    private func showVersionActionSuccess(_ action: VersionAction) {
+        print(action.successMessage)
     }
 
     private func openGitProjectInFinder() {

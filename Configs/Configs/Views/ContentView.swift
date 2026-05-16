@@ -289,18 +289,17 @@ struct ContentView: View {
                             configPath: file.path,
                             showHistorySidebar: $showHistorySidebar,
                             globalZoomLevel: globalZoomLevel,
-                            onRestore: { restoredContent, commitHash in
-                                // 立即更新 UI，让弹窗快速消失
+                            onApplyVersion: { restoredContent, commitHash, isUndo in
+                                let previousContent = self.originalFileContent
                                 self.fileContent = restoredContent
-                                self.originalFileContent = restoredContent // Update original content when restoring
-                                
-                                // 在后台线程执行保存操作，避免阻塞 UI
+                                self.originalFileContent = restoredContent
+
                                 DispatchQueue.global(qos: .userInitiated).async {
                                     FileOperations.saveFileContentWithVersioning(
                                         file: file,
                                         content: restoredContent,
-                                        originalContent: restoredContent, // Use the restored content as original
-                                        cursorLine: "\(L10n.tr("restore")) \(commitHash.prefix(7))",
+                                        originalContent: previousContent,
+                                        cursorLine: "\(isUndo ? L10n.tr("undo") : L10n.tr("restore")) \(commitHash.prefix(7))",
                                         onSaveSuccess: { newDate, newContent in
                                             DispatchQueue.main.async {
                                                 self.fileModificationDate = newDate
@@ -311,7 +310,7 @@ struct ContentView: View {
                                 }
                             }
                         )
-                        .frame(minWidth: 300 * globalZoomLevel, maxWidth: 400 * globalZoomLevel)
+                        .frame(minWidth: 180 * globalZoomLevel, idealWidth: 360 * globalZoomLevel, maxWidth: 560 * globalZoomLevel)
                         .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
                             handleDroppedFileProviders(providers)
                         }
