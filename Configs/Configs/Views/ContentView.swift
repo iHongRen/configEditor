@@ -39,8 +39,11 @@ struct ContentView: View {
     @State private var showDeleteAlert = false
     @State private var showHistorySidebar = false
     @State private var isDropTargeted = false
+    @State private var historySidebarWidth: CGFloat = HistorySidebarView.defaultSidebarWidth
 
     private let fileDropTypes: [UTType] = [.fileURL]
+    private let historyDividerHitWidth: CGFloat = 14
+    private let historyDividerVisualWidth: CGFloat = 1
 
     private func loadSelectedFile(_ file: ConfigFile?) {
         selectedFile = file
@@ -102,14 +105,49 @@ struct ContentView: View {
                 self.fileModificationDate = result.modificationDate
             }
 
-            Task.detached(priority: .utility) {
-                VersionManager.shared.syncLoadedContentIfNeeded(
-                    result.content,
-                    for: currentSelectedPath,
-                    reason: "External update"
-                )
+            if !VersionManager.shared.hasSyncedMetadata(for: currentSelectedPath, fileSize: result.fileSize, modificationDate: result.modificationDate) {
+                Task.detached(priority: .utility) {
+                    VersionManager.shared.syncLoadedContentIfNeeded(
+                        result.content,
+                        for: currentSelectedPath,
+                        fileSize: result.fileSize,
+                        modificationDate: result.modificationDate,
+                        reason: "External update"
+                    )
+                }
             }
         }
+    }
+
+    private var historySidebarDivider: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.25))
+            .frame(width: historyDividerVisualWidth)
+            .overlay {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: historyDividerHitWidth * globalZoomLevel)
+                    .contentShape(Rectangle())
+                    .onHover { isHovering in
+                        DispatchQueue.main.async {
+                            if isHovering {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let rawWidth = historySidebarWidth - value.translation.width / max(globalZoomLevel, 0.1)
+                                historySidebarWidth = min(
+                                    HistorySidebarView.maxSidebarWidth,
+                                    max(HistorySidebarView.minSidebarWidth, rawWidth)
+                                )
+                            }
+                    )
+            }
     }
 
     private func addCustomConfigFiles(from urls: [URL]) {
@@ -282,8 +320,8 @@ struct ContentView: View {
                 
                 // Right sidebar - History (conditionally shown)
                 if showHistorySidebar {
-                    Divider()
-                    
+                    historySidebarDivider
+
                     if let file = selectedFile {
                         HistorySidebarView(
                             configPath: file.path,
@@ -310,7 +348,7 @@ struct ContentView: View {
                                 }
                             }
                         )
-                        .frame(minWidth: 180 * globalZoomLevel, idealWidth: 360 * globalZoomLevel, maxWidth: 560 * globalZoomLevel)
+                        .frame(width: historySidebarWidth * globalZoomLevel)
                         .onDrop(of: fileDropTypes, isTargeted: $isDropTargeted) { providers in
                             handleDroppedFileProviders(providers)
                         }

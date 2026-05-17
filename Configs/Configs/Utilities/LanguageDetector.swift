@@ -32,15 +32,17 @@ struct LanguageDetector {
         }
         
         // Node.js related config files
-        if n.hasSuffix(".npmrc") || n.hasSuffix(".yarnrc") || 
+        if n.hasSuffix(".npmrc") || n.hasSuffix(".yarnrc") ||
            n.hasSuffix(".nvmrc") || n.hasSuffix(".npmignore") ||
            n.hasSuffix(".prettierrc") || n.hasSuffix(".prettierignore") ||
            n.hasSuffix(".eslintrc") || n.hasSuffix(".eslintrc.json") ||
            n.hasSuffix(".eslintignore") || n.hasSuffix(".stylelintrc") ||
            n.hasSuffix(".stylelintignore") || n.hasSuffix(".babelrc") ||
-           n.hasSuffix(".babelrc.js") || n.hasSuffix(".parcelrc") ||
-           n.hasSuffix(".mocharc.json") || n.hasSuffix(".mocharc.js") {
+           n.hasSuffix(".parcelrc") || n.hasSuffix(".mocharc.json") {
             return "json"
+        }
+        if n.hasSuffix(".babelrc.js") || n.hasSuffix(".mocharc.js") {
+            return "js"
         }
         
         // Python related config files
@@ -53,15 +55,20 @@ struct LanguageDetector {
         // Ruby related config files
         if n.hasSuffix(".irbrc") || n.hasSuffix(".pryrc") ||
            n.hasSuffix(".gemrc") || n.hasSuffix(".railsrc") ||
-           n.hasSuffix(".rspec") || n.hasSuffix(".rubocop.yml") ||
-           n.hasSuffix(".ruby-version") || n.hasSuffix(".ruby-gemset") {
+           n.hasSuffix(".rspec") || n.hasSuffix(".ruby-version") ||
+           n.hasSuffix(".ruby-gemset") {
             return "ruby"
         }
-        
+        if n.hasSuffix(".rubocop.yml") {
+            return "yml"
+        }
+
         // Java related config files
-        if n.hasSuffix("settings.xml") || n.hasSuffix("pom.xml") ||
-           n.hasSuffix("gradle.properties") || n.hasSuffix("gradle-wrapper.properties") {
+        if n.hasSuffix("settings.xml") || n.hasSuffix("pom.xml") {
             return "xml"
+        }
+        if n.hasSuffix("gradle.properties") || n.hasSuffix("gradle-wrapper.properties") {
+            return "properties"
         }
         
         // Go related config files
@@ -70,13 +77,16 @@ struct LanguageDetector {
         }
         
         // Rust related config files
-        if n.hasSuffix("Cargo.toml") || n.hasSuffix("rustfmt.toml") ||
+        if n.hasSuffix("cargo.toml") || n.hasSuffix("rustfmt.toml") ||
            n.hasSuffix("clippy.toml") {
             return "toml"
         }
-        
+
         // PHP related config files
-        if n.hasSuffix(".phpenv") || n.hasSuffix(".php.ini") {
+        if n.hasSuffix(".php.ini") {
+            return "ini"
+        }
+        if n.hasSuffix(".phpenv") {
             return "php"
         }
         
@@ -87,24 +97,35 @@ struct LanguageDetector {
         }
         
         // R related config files
-        if n.hasSuffix(".Rprofile") || n.hasSuffix(".Renviron") ||
-           n.hasSuffix(".Rhistory") {
+        if n.hasSuffix(".rprofile") || n.hasSuffix(".renviron") ||
+           n.hasSuffix(".rhistory") {
             return "r"
         }
-        
+
         // Docker related config files
-        if n.hasSuffix("Dockerfile") || n.hasSuffix(".dockerignore") ||
+        if n.hasSuffix("dockerfile") || n.hasSuffix(".dockerignore") ||
            n.hasSuffix("docker-compose.yml") || n.hasSuffix("docker-compose.yaml") {
             return "docker"
         }
         
         // SQL related config files
-        if n.hasSuffix(".my.cnf") || n.hasSuffix(".psqlrc") ||
-           n.hasSuffix(".pgpass") || n.hasSuffix(".sqliterc") {
+        if n.hasSuffix(".psqlrc") || n.hasSuffix(".sqliterc") {
             return "sql"
         }
-        
+        if n.hasSuffix(".my.cnf") {
+            return "ini"
+        }
+        if n.hasSuffix(".pgpass") {
+            return "conf"
+        }
+
         // Other common config files
+        if n.hasSuffix(".editorconfig") { return "ini" }
+        if n.hasSuffix(".plist") { return "xml" }
+        if n.hasSuffix("makefile") || n.hasSuffix("gnumakefile") { return "makefile" }
+        if n.hasSuffix("justfile") { return "makefile" }
+        if n.hasSuffix("brewfile") || n.hasSuffix("gemfile") || n.hasSuffix("rakefile") { return "ruby" }
+        if n.hasSuffix("requirements.txt") { return "properties" }
         if n.hasSuffix(".json") { return "json" }
         if n.hasSuffix(".json5") { return "json5" }
         if n.hasSuffix(".jsonl") { return "jsonl" }
@@ -113,7 +134,8 @@ struct LanguageDetector {
         if n.hasSuffix(".js") { return "js" }
         if n.hasSuffix(".ts") { return "ts" }
         if n.hasSuffix(".toml") { return "toml" }
-        if n.hasSuffix(".ini") || n.hasSuffix(".conf") { return "ini" }
+        if n.hasSuffix(".ini") || n.hasSuffix(".cfg") { return "ini" }
+        if n.hasSuffix(".conf") || n.hasSuffix(".cnf") { return "conf" }
         if n.hasSuffix(".xml") { return "xml" }
         if n.hasSuffix(".md") { return "markdown" }
         if n.hasSuffix(".html") || n.hasSuffix(".htm") { return "html" }
@@ -145,11 +167,11 @@ struct LanguageDetector {
         if n.hasSuffix(".proto") { return "protobuf" }
         if n.hasSuffix(".graphql") { return "graphql" }
         if n.hasSuffix(".gql") { return "graphql" }
-        if n.hasSuffix(".env") { return "env" }
+        if n == ".env" || n.hasSuffix("/.env") || n.hasPrefix(".env.") || n.contains("/.env.") { return "env" }
         if n.hasSuffix(".properties") { return "properties" }
         if n.hasSuffix(".toml") { return "toml" }
-        if n.hasSuffix(".ini") { return "ini" }
-        if n.hasSuffix(".conf") { return "conf" }
+        if n.hasSuffix(".ini") || n.hasSuffix(".cfg") { return "ini" }
+        if n.hasSuffix(".conf") || n.hasSuffix(".cnf") { return "conf" }
         if n.hasSuffix(".config") { return "conf" }
         if n.hasSuffix(".log") { return "log" }
         if n.hasSuffix(".txt") { return "text" }

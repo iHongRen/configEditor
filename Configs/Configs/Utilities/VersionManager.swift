@@ -25,6 +25,7 @@ class VersionManager {
     private var versionsDirectory: URL
     private let syncCacheLock = NSLock()
     private var latestSyncedContentByPath: [String: String] = [:]
+    private var latestSyncedMetadataByPath: [String: (fileSize: Int64, modificationDate: Date?)] = [:]
 
     private init() {
         guard let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
@@ -96,6 +97,23 @@ class VersionManager {
         syncCacheLock.lock()
         latestSyncedContentByPath[configPath] = content
         syncCacheLock.unlock()
+    }
+
+    private func cachedSyncedMetadata(for configPath: String) -> (fileSize: Int64, modificationDate: Date?)? {
+        syncCacheLock.lock()
+        defer { syncCacheLock.unlock() }
+        return latestSyncedMetadataByPath[configPath]
+    }
+
+    private func updateCachedSyncedMetadata(fileSize: Int64, modificationDate: Date?, for configPath: String) {
+        syncCacheLock.lock()
+        latestSyncedMetadataByPath[configPath] = (fileSize, modificationDate)
+        syncCacheLock.unlock()
+    }
+
+    func hasSyncedMetadata(for configPath: String, fileSize: Int64, modificationDate: Date?) -> Bool {
+        guard let cached = cachedSyncedMetadata(for: configPath) else { return false }
+        return cached.fileSize == fileSize && cached.modificationDate == modificationDate
     }
 
     private func latestCommitHash(for configPath: String) -> String? {
@@ -171,6 +189,9 @@ class VersionManager {
             print("Git commit failed: \(commitResult.error ?? "Unknown error")")
         } else {
             updateCachedSyncedContent(content, for: configPath)
+            syncCacheLock.lock()
+            latestSyncedMetadataByPath.removeValue(forKey: configPath)
+            syncCacheLock.unlock()
             notifyHistoryChanged(for: configPath)
         }
     }
@@ -221,19 +242,23 @@ class VersionManager {
         } else {
             print("Successfully committed changes for \(configPath)")
             updateCachedSyncedContent(content, for: configPath)
+            syncCacheLock.lock()
+            latestSyncedMetadataByPath.removeValue(forKey: configPath)
+            syncCacheLock.unlock()
             notifyHistoryChanged(for: configPath)
         }
     }
 
-    func syncLoadedContentIfNeeded(_ content: String, for configPath: String, reason: String? = nil) {
+    func syncLoadedContentIfNeeded(_ content: String, for configPath: String, fileSize: Int64, modificationDate: Date?, reason: String? = nil) {
         if cachedSyncedContent(for: configPath) == content {
+            updateCachedSyncedMetadata(fileSize: fileSize, modificationDate: modificationDate, for: configPath)
             return
         }
 
         initializeRepository(for: configPath)
 
         let latestContent = cachedSyncedContent(for: configPath) ?? getLatestCommittedContent(for: configPath) ?? ""
-        let hasExistingHistory = !getCommitHistory(for: configPath).isEmpty
+        let hasExistingHistory = latestCommitHash(for: configPath) != nil
 
         if hasExistingHistory {
             commitIfChanged(
@@ -243,12 +268,14 @@ class VersionManager {
                 cursorLine: reason
             )
             updateCachedSyncedContent(content, for: configPath)
+            updateCachedSyncedMetadata(fileSize: fileSize, modificationDate: modificationDate, for: configPath)
             return
         }
 
         let initialReason = reason?.trimmingCharacters(in: .whitespacesAndNewlines)
         let commitMessage = (initialReason?.isEmpty == false) ? initialReason! : "Initial snapshot"
         commit(content: content, for: configPath, message: commitMessage)
+        updateCachedSyncedMetadata(fileSize: fileSize, modificationDate: modificationDate, for: configPath)
     }
 
     private func getLatestCommittedContent(for configPath: String) -> String? {

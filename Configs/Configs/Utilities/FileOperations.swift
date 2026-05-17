@@ -131,10 +131,18 @@ struct FileOperations {
 
         let content = result.content
         let path = file.path
+        let fileSize = result.fileSize
+        let modificationDate = result.modificationDate
+        guard !VersionManager.shared.hasSyncedMetadata(for: path, fileSize: fileSize, modificationDate: modificationDate) else {
+            return
+        }
+
         Task.detached(priority: .utility) {
             VersionManager.shared.syncLoadedContentIfNeeded(
                 content,
                 for: path,
+                fileSize: fileSize,
+                modificationDate: modificationDate,
                 reason: "External update"
             )
         }

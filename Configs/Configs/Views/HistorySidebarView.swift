@@ -9,14 +9,11 @@ import SwiftUI
 import AppKit
 
 struct HistorySidebarView: View {
+    static let defaultSidebarWidth: CGFloat = 300
+    static let minSidebarWidth: CGFloat = 240
+    static let maxSidebarWidth: CGFloat = 520
     private static let largeInitialCommitThreshold = 512 * 1024
     private static let initialCommitPreviewLineCount = 50
-
-    private enum LayoutMode {
-        case narrow
-        case compact
-        case regular
-    }
 
     private enum VersionAction {
         case undo(target: Commit)
@@ -84,11 +81,9 @@ struct HistorySidebarView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let mode = layoutMode(for: geometry.size.width)
-
             VStack(alignment: .leading, spacing: 0) {
-                headerView(mode: mode)
-                resizableContentView(mode: mode)
+                headerView()
+                resizableContentView(geometry: geometry)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -138,39 +133,27 @@ struct HistorySidebarView: View {
         }
     }
     
-    private func layoutMode(for width: CGFloat) -> LayoutMode {
-        if width < 320 * globalZoomLevel {
-            return .narrow
-        }
-        if width < 500 * globalZoomLevel {
-            return .compact
-        }
-        return .regular
-    }
+    private func headerView() -> some View {
+        let iconSize = 28 * globalZoomLevel
+        let horizontalPadding = 12 * globalZoomLevel
 
-    private func headerView(mode: LayoutMode) -> some View {
-        let iconSize = mode == .narrow ? 24 * globalZoomLevel : 28 * globalZoomLevel
-        let horizontalPadding = (mode == .narrow ? 6 : 12) * globalZoomLevel
-
-        return HStack(spacing: (mode == .narrow ? 6 : 12) * globalZoomLevel) {
-            if mode != .narrow {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.accentColor.opacity(0.8), Color.accentColor],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+        return HStack(spacing: 12 * globalZoomLevel) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.8), Color.accentColor],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                        .frame(width: iconSize, height: iconSize)
+                    )
+                    .frame(width: iconSize, height: iconSize)
 
-                    Image(systemName: "clock")
-                        .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .layoutPriority(1)
+                Image(systemName: "clock")
+                    .font(.system(size: 14 * globalZoomLevel, weight: .semibold))
+                    .foregroundColor(.white)
             }
+            .layoutPriority(1)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.tr("version.history"))
@@ -186,7 +169,7 @@ struct HistorySidebarView: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(0)
+            .layoutPriority(1)
 
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -202,11 +185,13 @@ struct HistorySidebarView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
+            .frame(width: iconSize, height: iconSize)
+            .fixedSize()
             .help(L10n.tr("close.history"))
-            .layoutPriority(10)
+            .layoutPriority(20)
         }
         .padding(.horizontal, horizontalPadding)
-        .padding(.vertical, mode == .narrow ? 8 : 12)
+        .padding(.vertical, 12 * globalZoomLevel)
         .frame(maxWidth: .infinity)
         .background(
             Rectangle()
@@ -220,19 +205,17 @@ struct HistorySidebarView: View {
         )
     }
 
-    private func resizableContentView(mode: LayoutMode) -> some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                commitListView(geometry: geometry, mode: mode)
-                bottomContentView(geometry: geometry, mode: mode)
-            }
+    private func resizableContentView(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            commitListView(geometry: geometry)
+            bottomContentView(geometry: geometry)
         }
     }
-    
-    private func commitListView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
-        let horizontalPadding = (mode == .narrow ? 6 : (mode == .compact ? 10 : 16)) * globalZoomLevel
-        let verticalPadding = (mode == .narrow ? 8 : 12) * globalZoomLevel
-        let minHeight = mode == .narrow ? 96 * globalZoomLevel : 120 * globalZoomLevel
+
+    private func commitListView(geometry: GeometryProxy) -> some View {
+        let horizontalPadding = 16 * globalZoomLevel
+        let verticalPadding = 12 * globalZoomLevel
+        let minHeight = 120 * globalZoomLevel
 
         return VStack(spacing: 0) {
             // Commits list
@@ -269,7 +252,7 @@ struct HistorySidebarView: View {
                     ScrollView {
                         LazyVStack(spacing: 8) {
                             ForEach(commits) { commit in
-                                commitRowView(commit: commit, mode: mode)
+                                commitRowView(commit: commit)
                                     .id(commit.hash)
                                     .padding(.horizontal, horizontalPadding)
                             }
@@ -297,13 +280,12 @@ struct HistorySidebarView: View {
         )
     }
     
-    private func commitRowView(commit: Commit, mode: LayoutMode) -> some View {
+    private func commitRowView(commit: Commit) -> some View {
         let isSelected = selectedCommit?.hash == commit.hash
         let isHovered = hoveredCommit?.hash == commit.hash
-        let rowSpacing = (mode == .regular ? 12 : 8) * globalZoomLevel
-        let rowPadding = (mode == .narrow ? 8 : (mode == .compact ? 10 : 16)) * globalZoomLevel
-        let metadataSpacing = (mode == .regular ? 12 : 4) * globalZoomLevel
-        let isCompact = mode != .regular
+        let rowSpacing = 12 * globalZoomLevel
+        let rowPadding = 16 * globalZoomLevel
+        let metadataSpacing = 12 * globalZoomLevel
 
         return HStack(alignment: .top, spacing: rowSpacing) {
             // Timeline indicator
@@ -320,41 +302,32 @@ struct HistorySidebarView: View {
                 if commit.hash != commits.last?.hash {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.4))
-                        .frame(width: 1, height: (isCompact ? 34 : 40) * globalZoomLevel)
+                        .frame(width: 1, height: 40 * globalZoomLevel)
                 }
             }
-            
+
             // Commit content
-            VStack(alignment: .leading, spacing: isCompact ? 6 : 8) {
+            VStack(alignment: .leading, spacing: 8 * globalZoomLevel) {
                 // Commit message
                 Text(commit.message)
                     .font(.system(size: 13 * globalZoomLevel, weight: .medium))
                     .foregroundColor(.primary)
-                    .lineLimit(mode == .narrow ? 1 : 2)
+                    .lineLimit(2)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.leading)
 
                 // Metadata row
-                Group {
-                    if isCompact {
-                        VStack(alignment: .leading, spacing: metadataSpacing) {
-                            commitHashBadge(commit: commit, isSelected: isSelected)
-                            commitDateText(commit: commit)
-                        }
-                    } else {
-                        HStack(spacing: metadataSpacing) {
-                            commitHashBadge(commit: commit, isSelected: isSelected)
-                            Spacer(minLength: 8)
-                            commitDateText(commit: commit)
-                        }
-                    }
+                HStack(spacing: metadataSpacing) {
+                    commitHashBadge(commit: commit, isSelected: isSelected)
+                    Spacer(minLength: 8)
+                    commitDateText(commit: commit)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, isCompact ? 10 : 12)
+        .padding(.vertical, 12 * globalZoomLevel)
         .padding(.horizontal, rowPadding)
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -411,23 +384,22 @@ struct HistorySidebarView: View {
     
 
     
-    private func bottomContentView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
-        let minHeight = mode == .narrow ? 132 * globalZoomLevel : 160 * globalZoomLevel
+    private func bottomContentView(geometry: GeometryProxy) -> some View {
+        let minHeight = 160 * globalZoomLevel
 
         return Group {
             if selectedCommit != nil {
-                diffContentView(geometry: geometry, mode: mode)
+                diffContentView(geometry: geometry)
             } else {
-                emptyStateView(geometry: geometry, mode: mode)
+                emptyStateView()
             }
         }
         .frame(height: max(minHeight, geometry.size.height * (1 - splitPosition)))
     }
 
-    private func diffContentView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
+    private func diffContentView(geometry: GeometryProxy) -> some View {
         let action = currentVersionAction()
-        let isCompact = mode != .regular
-        let headerHeight = (mode == .narrow ? 40 : 42) * globalZoomLevel
+        let headerHeight = 42 * globalZoomLevel
 
         return VStack(spacing: 0) {
             // Diff header with drag functionality
@@ -459,59 +431,8 @@ struct HistorySidebarView: View {
                             }
                     )
                 
-                HStack(spacing: (mode == .narrow ? 6 : (mode == .compact ? 8 : 12)) * globalZoomLevel) {
-                    historyIconButton(
-                        systemImage: "doc.text",
-                        foregroundColor: .accentColor,
-                        background: Color.accentColor.opacity(0.15),
-                        help: L10n.tr("copy.content.to.clipboard")
-                    ) {
-                        if let diff = selectedCommitDiff {
-                            copyDiffToClipboard(diff)
-                        } else if let content = selectedCommitContent {
-                            copyContentToClipboard(content)
-                        }
-                    }
-                    .layoutPriority(mode == .narrow ? 0 : 1)
-
-                    if mode != .narrow {
-                        Text(L10n.tr("changes"))
-                            .font(.system(size: 13 * globalZoomLevel, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .layoutPriority(1)
-                    }
-
-                    Spacer(minLength: (mode == .narrow ? 2 : (mode == .compact ? 4 : 12)) * globalZoomLevel)
-
-                    HStack(spacing: (mode == .regular ? 12 : 6) * globalZoomLevel) {
-                        historyHeaderButton(
-                            systemImage: "folder",
-                            text: mode == .regular ? L10n.tr("git.project") : nil,
-                            foregroundColor: .accentColor,
-                            background: Color.accentColor.opacity(0.12),
-                            help: L10n.tr("open.git.project.in.finder"),
-                            action: openGitProjectInFinder
-                        )
-
-                        historyHeaderButton(
-                            systemImage: action?.isUndo == true ? "arrow.counterclockwise" : "clock.arrow.circlepath",
-                            text: mode == .regular ? (isApplyingVersionAction ? action?.inProgressTitle : action?.confirmationButtonTitle) : nil,
-                            foregroundColor: .white,
-                            background: isApplyingVersionAction ? Color.secondary : Color.accentColor,
-                            help: isApplyingVersionAction ? (action?.inProgressHelpTitle ?? L10n.tr("restoring.version")) : (action?.helpTitle ?? L10n.tr("restore.this.version")),
-                            disabled: isApplyingVersionAction || action == nil,
-                            showsProgress: isApplyingVersionAction
-                        ) {
-                            if !isApplyingVersionAction {
-                                showVersionActionConfirmation = true
-                            }
-                        }
-                    }
-                    .layoutPriority(10)
-                }
-                .padding(.horizontal, (mode == .narrow ? 6 : (mode == .compact ? 8 : 12)) * globalZoomLevel)
+                headerControls(action: action)
+                    .padding(.horizontal, 12 * globalZoomLevel)
             }
             .frame(height: headerHeight)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
@@ -527,14 +448,12 @@ struct HistorySidebarView: View {
                     DiffTextView(diffString: diff, fontSize: 13 * globalZoomLevel)
                 } else if isLoadingDiff {
                     centeredDiffStateView(
-                        mode: mode,
                         spacing: 16,
                         icon: AnyView(ProgressView().scaleEffect(0.8)),
                         text: L10n.tr("loading.changes")
                     )
                 } else {
                     centeredDiffStateView(
-                        mode: mode,
                         spacing: 16,
                         icon: nil,
                         text: L10n.tr("no.changes.display")
@@ -545,9 +464,65 @@ struct HistorySidebarView: View {
             .background(Color(NSColor.textBackgroundColor).opacity(0.7))
         }
     }
-    
 
-    
+    private func headerControls(action: VersionAction?) -> some View {
+        let spacing = 12 * globalZoomLevel
+        let title = Text(L10n.tr("changes"))
+            .font(.system(size: 13 * globalZoomLevel, weight: .semibold))
+            .foregroundColor(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+
+        let copyButton = historyIconButton(
+            systemImage: "doc.text",
+            foregroundColor: .accentColor,
+            background: Color.accentColor.opacity(0.15),
+            help: L10n.tr("copy.content.to.clipboard")
+        ) {
+            if let diff = selectedCommitDiff {
+                copyDiffToClipboard(diff)
+            } else if let content = selectedCommitContent {
+                copyContentToClipboard(content)
+            }
+        }
+
+        let gitButton = historyHeaderButton(
+            systemImage: "folder",
+            text: L10n.tr("git.project"),
+            foregroundColor: .accentColor,
+            background: Color.accentColor.opacity(0.12),
+            help: L10n.tr("open.git.project.in.finder"),
+            action: openGitProjectInFinder
+        )
+
+        let versionButton = historyHeaderButton(
+            systemImage: action?.isUndo == true ? "arrow.counterclockwise" : "clock.arrow.circlepath",
+            text: isApplyingVersionAction ? action?.inProgressTitle : action?.confirmationButtonTitle,
+            foregroundColor: .white,
+            background: isApplyingVersionAction ? Color.secondary : Color.accentColor,
+            help: isApplyingVersionAction ? (action?.inProgressHelpTitle ?? L10n.tr("restoring.version")) : (action?.helpTitle ?? L10n.tr("restore.this.version")),
+            disabled: isApplyingVersionAction || action == nil,
+            showsProgress: isApplyingVersionAction
+        ) {
+            if !isApplyingVersionAction {
+                showVersionActionConfirmation = true
+            }
+        }
+
+        return HStack(spacing: spacing) {
+            copyButton
+                .layoutPriority(3)
+            title
+                .layoutPriority(1)
+            Spacer(minLength: 8 * globalZoomLevel)
+            gitButton
+                .layoutPriority(5)
+            versionButton
+                .layoutPriority(6)
+        }
+    }
+
+
     private func historyHeaderButton(
         systemImage: String,
         text: String?,
@@ -573,11 +548,11 @@ struct HistorySidebarView: View {
                     Text(text)
                         .font(.system(size: 11 * globalZoomLevel, weight: .semibold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.55)
                 }
             }
             .foregroundColor(foregroundColor)
-            .frame(minWidth: text == nil ? 26 * globalZoomLevel : 0)
+            .frame(minWidth: text == nil ? 26 * globalZoomLevel : 44 * globalZoomLevel)
             .padding(.horizontal, (text == nil ? 6 : 8) * globalZoomLevel)
             .padding(.vertical, 4 * globalZoomLevel)
             .background(
@@ -588,6 +563,7 @@ struct HistorySidebarView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .disabled(disabled)
+        .fixedSize(horizontal: true, vertical: true)
         .help(help)
         .onHover { isHovering in
             DispatchQueue.main.async {
@@ -631,7 +607,7 @@ struct HistorySidebarView: View {
         }
     }
 
-    private func centeredDiffStateView(mode: LayoutMode, spacing: CGFloat, icon: AnyView?, text: String) -> some View {
+    private func centeredDiffStateView(spacing: CGFloat, icon: AnyView?, text: String) -> some View {
         VStack(spacing: spacing * globalZoomLevel) {
             Spacer()
 
@@ -643,22 +619,22 @@ struct HistorySidebarView: View {
                 .font(.system(size: 13 * globalZoomLevel, weight: .medium))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .lineLimit(mode == .narrow ? 2 : 3)
+                .lineLimit(3)
                 .minimumScaleFactor(0.75)
-                .padding(.horizontal, (mode == .narrow ? 10 : 16) * globalZoomLevel)
+                .padding(.horizontal, 16 * globalZoomLevel)
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func emptyStateView(geometry: GeometryProxy, mode: LayoutMode) -> some View {
-        let outerSize = mode == .narrow ? 56 * globalZoomLevel : 80 * globalZoomLevel
-        let innerSize = mode == .narrow ? 42 * globalZoomLevel : 60 * globalZoomLevel
-        let iconSize = mode == .narrow ? 20 * globalZoomLevel : 28 * globalZoomLevel
-        let horizontalPadding = mode == .narrow ? 12 * globalZoomLevel : 24 * globalZoomLevel
+    private func emptyStateView() -> some View {
+        let outerSize = 80 * globalZoomLevel
+        let innerSize = 60 * globalZoomLevel
+        let iconSize = 28 * globalZoomLevel
+        let horizontalPadding = 24 * globalZoomLevel
 
-        return VStack(spacing: mode == .narrow ? 12 : 20) {
+        return VStack(spacing: 20 * globalZoomLevel) {
             Spacer(minLength: 8)
 
             ZStack {
@@ -675,18 +651,18 @@ struct HistorySidebarView: View {
                     .foregroundColor(.secondary)
             }
 
-            VStack(spacing: mode == .narrow ? 6 : 10) {
+            VStack(spacing: 10 * globalZoomLevel) {
                 Text(L10n.tr("select.a.commit"))
-                    .font(.system(size: (mode == .narrow ? 14 : 16) * globalZoomLevel, weight: .semibold))
+                    .font(.system(size: 16 * globalZoomLevel, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 Text(L10n.tr("select.commit.description"))
-                    .font(.system(size: (mode == .narrow ? 11 : 12) * globalZoomLevel))
+                    .font(.system(size: 12 * globalZoomLevel))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(mode == .narrow ? 2 : 3)
+                    .lineLimit(3)
                     .minimumScaleFactor(0.85)
                     .padding(.horizontal, horizontalPadding)
             }

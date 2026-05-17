@@ -43,11 +43,12 @@ struct DiffTextView: View {
     }
 
     var body: some View {
-        ScrollView([.vertical, .horizontal]) {
+        ScrollView(.vertical) {
             Text(attributedString)
                 .font(.system(size: fontSize, design: .monospaced))
                 .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: false)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(5)
         }

@@ -328,6 +328,7 @@ private final class LineNumberGutterView: NSView {
 
         var glyphIndex = glyphRange.location
         var lastDrawnLineStart = -1
+        var visibleLineNumber: Int?
         while glyphIndex < NSMaxRange(glyphRange) {
             var lineGlyphRange = NSRange(location: 0, length: 0)
             let lineFragmentRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineGlyphRange, withoutAdditionalLayout: true)
@@ -336,7 +337,12 @@ private final class LineNumberGutterView: NSView {
 
             if lineCharRange.location != lastDrawnLineStart {
                 lastDrawnLineStart = lineCharRange.location
-                let lineNo = text.lineNumber(at: lineCharRange.location) + 1
+                if visibleLineNumber == nil {
+                    visibleLineNumber = text.lineNumber(at: lineCharRange.location) + 1
+                } else {
+                    visibleLineNumber? += 1
+                }
+                let lineNo = visibleLineNumber ?? 1
                 let attrs = (lineNo == currentLine) ? currentAttrs : baseAttrs
                 let s = "\(lineNo)" as NSString
                 let size = s.size(withAttributes: attrs)
@@ -636,12 +642,11 @@ struct CodeEditorView: NSViewRepresentable {
 
         textView.backgroundColor = theme.background
 
-        let patterns = getHighlightPatterns(for: fileExtension, theme: theme)
+        let patterns = usesLightweightHighlighting ? lightweightHighlightPatterns(theme: theme) : getHighlightPatterns(for: fileExtension, theme: theme)
         let commentRanges = usesLightweightHighlighting ? [] : getCommentRanges(for: fileExtension, in: textStorage.string, fullRange: fullRange)
         for (pattern, color) in patterns {
             let addsLinkAttribute = pattern.contains("https?://")
-            if usesLightweightHighlighting || pattern.contains("#.*") || pattern.contains(";.*") {
-                // Apply comment highlighting without exclusion
+            if usesLightweightHighlighting || isCommentPattern(pattern) {
                 highlightPattern(textStorage, pattern, color: color, range: fullRange, addsLinkAttribute: addsLinkAttribute)
             } else {
                 // Apply other patterns excluding comment ranges
@@ -667,6 +672,15 @@ struct CodeEditorView: NSViewRepresentable {
         } else {
             textView.scrollToVisible(visibleRect)
         }
+    }
+
+    private func lightweightHighlightPatterns(theme: Theme) -> [(String, NSColor)] {
+        [
+            ("(^\\s*(#|//|;|--).*)", theme.comment),
+            ("(<!--([\\s\\S]*?)-->|/\\*[\\s\\S]*?\\*/)", theme.comment),
+            ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+            ("(https?://(?:[A-Za-z0-9\\-._~:/?#\\[\\]@!$&*+,;=%]|\\([^\\s()]*\\))*(?:[A-Za-z0-9\\-._~:/?#\\[\\]@!$&*+=%]|\\([^\\s()]*\\)))", theme.link)
+        ]
     }
 
     internal func getHighlightPatterns(for fileExtension: String, theme: Theme) -> [(String, NSColor)] {
@@ -774,10 +788,117 @@ struct CodeEditorView: NSViewRepresentable {
             ]
         case "ini", "git", "conf":
              patterns = [
-                ("(^#.*)", theme.comment),
-                ("(^;.*)", theme.comment),
-                ("(\\[[^\\]]+\\])", theme.keyword),
-                ("(([^=]+)=(.+))", theme.property)
+                ("(^\\s*[#;].*)", theme.comment),
+                ("(^\\s*\\[[^\\]]+\\])", theme.keyword),
+                ("(^\\s*[^=:#;\\s][^=:#;]*\\s*[=:])", theme.property),
+                ("(\"([^\"]*)\"|'([^']*)')", theme.string)
+            ]
+        case "makefile":
+            patterns = [
+                ("(^\\s*#.*)", theme.comment),
+                ("(^[A-Za-z0-9_.-]+\\s*:)", theme.property),
+                ("\\b(ifdef|ifndef|ifeq|ifneq|else|endif|include|define|endef|export|unexport|override|private|vpath)\\b", theme.keyword),
+                ("\\$\\([^)]+\\)|\\$\\{[^}]+\\}", theme.variable),
+                ("(\"([^\"]*)\"|'([^']*)')", theme.string)
+            ]
+        case "css", "scss", "less":
+            patterns = [
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("@[A-Za-z-]+", theme.keyword),
+                ("([A-Za-z-]+)(?=\\s*:)", theme.property),
+                ("(#[0-9A-Fa-f]{3,8}\\b|\\b\\d+(?:\\.\\d+)?(?:px|em|rem|%|vh|vw|s|ms)?\\b)", theme.number),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("(\\$[A-Za-z_-][A-Za-z0-9_-]*|@[A-Za-z_-][A-Za-z0-9_-]*(?=\\s*:))", theme.variable)
+            ]
+        case "ruby":
+            patterns = [
+                ("(#.*)", theme.comment),
+                ("\\b(def|class|module|do|end|if|elsif|else|unless|case|when|while|until|for|in|begin|rescue|ensure|return|yield|self|nil|true|false|require|include|extend)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|`([^`\\\\]|\\\\.)*`)", theme.string),
+                ("(:[A-Za-z_][A-Za-z0-9_]*|@[A-Za-z_][A-Za-z0-9_]*|\\$[A-Za-z_][A-Za-z0-9_]*)", theme.variable),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "php":
+            patterns = [
+                ("(//.*|#.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("(<\\?php|\\?>)", theme.keyword),
+                ("\\b(abstract|array|as|break|case|catch|class|const|continue|declare|default|echo|else|elseif|extends|final|for|foreach|function|global|if|implements|include|namespace|new|null|private|protected|public|require|return|static|switch|throw|trait|try|use|var|while|true|false)\\b", theme.keyword),
+                ("\\$[A-Za-z_][A-Za-z0-9_]*", theme.variable),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "go", "rust", "java", "kotlin", "scala", "groovy", "c", "cpp":
+            patterns = [
+                ("(//.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(abstract|as|async|await|auto|break|case|catch|class|const|continue|data|defer|do|else|enum|extern|false|final|for|func|fun|go|guard|if|impl|import|in|inline|interface|let|match|mut|namespace|new|null|nullptr|object|operator|override|package|private|protected|protocol|public|return|self|static|struct|super|switch|template|this|throw|trait|true|try|type|typedef|typename|use|using|val|var|virtual|void|when|where|while)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "sql":
+            patterns = [
+                ("(--.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|ALTER|DROP|TABLE|VIEW|INDEX|PRIMARY|KEY|FOREIGN|REFERENCES|AND|OR|NOT|NULL|IS|IN|LIKE|ORDER|GROUP|BY|HAVING|LIMIT|OFFSET|UNION|ALL|DISTINCT|AS|CASE|WHEN|THEN|ELSE|END)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "terraform", "hcl":
+            patterns = [
+                ("(^\\s*(#|//).*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(resource|data|module|variable|locals|output|provider|terraform|backend|required_providers)\\b", theme.keyword),
+                ("(^\\s*[A-Za-z0-9_.-]+\\s*=)", theme.property),
+                ("(\"([^\"\\\\]|\\\\.)*\")", theme.string),
+                ("\\b(true|false|null)\\b", theme.keyword),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "protobuf":
+            patterns = [
+                ("(//.*)", theme.comment),
+                ("/\\*[\\s\\S]*?\\*/", theme.comment),
+                ("\\b(syntax|package|import|option|message|enum|service|rpc|returns|repeated|optional|required|reserved|oneof|map|true|false)\\b", theme.keyword),
+                ("\\b(double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes)\\b", theme.property),
+                ("(\"([^\"\\\\]|\\\\.)*\")", theme.string),
+                ("\\b\\d+\\b", theme.number)
+            ]
+        case "graphql":
+            patterns = [
+                ("(#.*)", theme.comment),
+                ("\\b(query|mutation|subscription|fragment|on|schema|type|interface|union|enum|input|extend|directive|scalar|implements)\\b", theme.keyword),
+                ("(\"\"\"[\\s\\S]*?\"\"\"|\"([^\"\\\\]|\\\\.)*\")", theme.string),
+                ("([A-Za-z_][A-Za-z0-9_]*)(?=\\s*[:(])", theme.property),
+                ("\\b(true|false|null)\\b", theme.keyword),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "lua":
+            patterns = [
+                ("(--.*)", theme.comment),
+                ("\\b(function|local|return|if|then|else|elseif|end|for|while|repeat|until|do|break|nil|true|false|and|or|not|require)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "perl":
+            patterns = [
+                ("(#.*)", theme.comment),
+                ("\\b(my|our|use|sub|return|if|elsif|else|unless|while|for|foreach|last|next|redo|package|require|true|false|undef)\\b", theme.keyword),
+                ("[$@%][A-Za-z_][A-Za-z0-9_]*", theme.variable),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|`([^`\\\\]|\\\\.)*`)", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "r":
+            patterns = [
+                ("(#.*)", theme.comment),
+                ("\\b(function|if|else|for|while|repeat|break|next|return|TRUE|FALSE|NULL|NA|library|require)\\b", theme.keyword),
+                ("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')", theme.string),
+                ("\\b\\d+(?:\\.\\d+)?\\b", theme.number)
+            ]
+        case "log":
+            patterns = [
+                ("\\b(ERROR|WARN|WARNING|INFO|DEBUG|TRACE|FATAL|CRITICAL)\\b", theme.keyword),
+                ("\\b\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?\\b", theme.number),
+                ("(\"([^\"\\\\]|\\\\.)*\")", theme.string)
             ]
         default:
             break
@@ -793,18 +914,14 @@ struct CodeEditorView: NSViewRepresentable {
         var commentPatterns: [String] = []
         
         switch ext {
-        case "sh", "zsh", "bash", ".zshrc", ".bashrc", ".profile":
+        case "sh", "zsh", "bash", ".zshrc", ".bashrc", ".profile", "yml", "yaml", "py", "toml", "docker", "properties", "env", "makefile", "ruby", "graphql", "perl", "r":
             commentPatterns = ["#.*"]
         case "ini", "git", "conf":
-            commentPatterns = ["^#.*", "^;.*"]
-        case "yml", "yaml":
-            commentPatterns = ["#.*"]
-        case "py", "toml", "docker", "properties", "env":
-            commentPatterns = ["#.*"]
-        case "js", "ts", "swift":
+            commentPatterns = ["^\\s*#.*", "^\\s*;.*"]
+        case "js", "ts", "swift", "json5", "css", "scss", "less", "php", "go", "rust", "java", "kotlin", "scala", "groovy", "c", "cpp", "terraform", "hcl", "protobuf":
             commentPatterns = ["//.*", "/\\*[\\s\\S]*?\\*/"]
-        case "json5":
-            commentPatterns = ["//.*", "/\\*[\\s\\S]*?\\*/"]
+        case "sql", "lua":
+            commentPatterns = ["--.*", "/\\*[\\s\\S]*?\\*/"]
         case "xml", "html":
             commentPatterns = ["<!--([\\s\\S]*?)-->"]
         default:
@@ -828,6 +945,15 @@ struct CodeEditorView: NSViewRepresentable {
         return commentRanges
     }
     
+    private func isCommentPattern(_ pattern: String) -> Bool {
+        pattern.contains("#.*") ||
+        pattern.contains("//.*") ||
+        pattern.contains("--.*") ||
+        pattern.contains(";.*") ||
+        pattern.contains("/\\*") ||
+        pattern.contains("<!--")
+    }
+
     internal func highlightPattern(_ textStorage: NSTextStorage, _ pattern: String, color: NSColor, isBackground: Bool = false, range: NSRange, excludeRanges: [NSRange] = [], addsLinkAttribute: Bool = false) {
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: .caseInsensitive)
@@ -1184,26 +1310,72 @@ struct CodeEditorView: NSViewRepresentable {
             }
 
             let commentPrefix = getCommentPrefix(for: parent.fileExtension)
+            guard !commentPrefix.isEmpty else { return }
+            let isXMLStyle = commentPrefix == "<!-- "
 
             // Determine if we are commenting or uncommenting
             let isUncommenting = lineRanges.allSatisfy { range in
                 let line = fullText.substring(with: range)
-                return line.trimmingCharacters(in: .whitespaces).hasPrefix(commentPrefix)
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if isXMLStyle {
+                    return trimmed.hasPrefix("<!--") && trimmed.hasSuffix("-->")
+                }
+                return trimmed.hasPrefix(commentPrefix.trimmingCharacters(in: .whitespaces))
             }
 
             undoManager.beginUndoGrouping()
             for range in lineRanges.reversed() { // Process from bottom to top to keep ranges valid
                 let line = fullText.substring(with: range)
+                let lineWithoutNewline = line.trimmingCharacters(in: .newlines)
+                let leadingWhitespace = String(lineWithoutNewline.prefix(while: { $0 == " " || $0 == "\t" }))
+                let insertionLocation = range.location + (leadingWhitespace as NSString).length
+
+                if isXMLStyle {
+                    if isUncommenting {
+                        if let openingRange = line.range(of: "<!--"), let closingRange = line.range(of: "-->", options: .backwards) {
+                            let openEnd = openingRange.upperBound
+                            let removeOpeningSpace = openEnd < line.endIndex && line[openEnd] == " "
+                            let openingRemoval = NSRange(location: range.location + openingRange.lowerBound.utf16Offset(in: line), length: removeOpeningSpace ? 5 : 4)
+                            let beforeClose = closingRange.lowerBound > line.startIndex ? line.index(before: closingRange.lowerBound) : closingRange.lowerBound
+                            let removeClosingSpace = beforeClose < closingRange.lowerBound && line[beforeClose] == " "
+                            let closingRemoval = NSRange(location: range.location + (removeClosingSpace ? beforeClose : closingRange.lowerBound).utf16Offset(in: line), length: removeClosingSpace ? 4 : 3)
+                            if textView.shouldChangeText(in: closingRemoval, replacementString: "") {
+                                textView.replaceCharacters(in: closingRemoval, with: "")
+                            }
+                            if textView.shouldChangeText(in: openingRemoval, replacementString: "") {
+                                textView.replaceCharacters(in: openingRemoval, with: "")
+                            }
+                        }
+                    } else {
+                        let lineContentLength = (lineWithoutNewline as NSString).length
+                        let closingLocation = range.location + lineContentLength
+                        if textView.shouldChangeText(in: NSRange(location: closingLocation, length: 0), replacementString: " -->") {
+                            textView.replaceCharacters(in: NSRange(location: closingLocation, length: 0), with: " -->")
+                        }
+                        if textView.shouldChangeText(in: NSRange(location: insertionLocation, length: 0), replacementString: "<!-- ") {
+                            textView.replaceCharacters(in: NSRange(location: insertionLocation, length: 0), with: "<!-- ")
+                        }
+                    }
+                    continue
+                }
+
                 if isUncommenting {
-                    if let prefixRange = line.range(of: commentPrefix) {
-                        let removalRange = NSRange(location: range.location + (prefixRange.lowerBound.utf16Offset(in: line)), length: commentPrefix.count)
+                    let trimmedPrefix = commentPrefix.trimmingCharacters(in: .whitespaces)
+                    let contentStart = line.index(line.startIndex, offsetBy: leadingWhitespace.count)
+                    if line[contentStart...].hasPrefix(commentPrefix) {
+                        let removalRange = NSRange(location: insertionLocation, length: (commentPrefix as NSString).length)
+                        if textView.shouldChangeText(in: removalRange, replacementString: "") {
+                            textView.replaceCharacters(in: removalRange, with: "")
+                        }
+                    } else if line[contentStart...].hasPrefix(trimmedPrefix) {
+                        let removalRange = NSRange(location: insertionLocation, length: (trimmedPrefix as NSString).length)
                         if textView.shouldChangeText(in: removalRange, replacementString: "") {
                             textView.replaceCharacters(in: removalRange, with: "")
                         }
                     }
                 } else {
-                    if textView.shouldChangeText(in: NSRange(location: range.location, length: 0), replacementString: commentPrefix) {
-                        textView.replaceCharacters(in: NSRange(location: range.location, length: 0), with: commentPrefix)
+                    if textView.shouldChangeText(in: NSRange(location: insertionLocation, length: 0), replacementString: commentPrefix) {
+                        textView.replaceCharacters(in: NSRange(location: insertionLocation, length: 0), with: commentPrefix)
                     }
                 }
             }
@@ -1252,8 +1424,7 @@ struct CodeEditorView: NSViewRepresentable {
             
             for (pattern, color) in patterns {
                 let addsLinkAttribute = pattern.contains("https?://")
-                if pattern.contains("#.*") || pattern.contains(";.*") {
-                    // Apply comment highlighting without exclusion
+                if parent.isCommentPattern(pattern) {
                     parent.highlightPattern(textStorage, pattern, color: color, range: safeRange, addsLinkAttribute: addsLinkAttribute)
                 } else {
                     // Apply other patterns excluding comment ranges
@@ -1281,14 +1452,14 @@ struct CodeEditorView: NSViewRepresentable {
         private func getCommentPrefix(for fileExtension: String) -> String {
             let ext = fileExtension.lowercased()
             switch ext {
-            case "sh", "zsh", "bash", ".zshrc", ".bashrc", ".profile", "yml", "yaml", "py":
-                return "# "
-            case "ini", "git", "conf":
-                return "# "
-            case "js", "ts", "c", "cpp", "java":
+            case "json", "jsonl", "text", "log":
+                return ""
+            case "xml", "html":
+                return "<!-- "
+            case "js", "ts", "json5", "c", "cpp", "java", "swift", "css", "scss", "less", "php", "go", "rust", "kotlin", "scala", "groovy", "terraform", "hcl", "protobuf":
                 return "// "
-            case "swift":
-                return "// "
+            case "sql", "lua":
+                return "-- "
             default:
                 return "# "
             }
@@ -1348,7 +1519,8 @@ struct CodeEditorView: NSViewRepresentable {
             let ns = tv.string as NSString
             let fullRange = NSRange(location: 0, length: ns.length)
             
-            let matches = (try? NSRegularExpression(pattern: text, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
+            let pattern = NSRegularExpression.escapedPattern(for: text)
+            let matches = (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
             self.matchCount.wrappedValue = matches.count
             
             if matches.isEmpty { 
@@ -1381,7 +1553,8 @@ struct CodeEditorView: NSViewRepresentable {
             let ns = tv.string as NSString
             let fullRange = NSRange(location: 0, length: ns.length)
             
-            let matches = (try? NSRegularExpression(pattern: text, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
+            let pattern = NSRegularExpression.escapedPattern(for: text)
+            let matches = (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive))?.matches(in: ns as String, options: [], range: fullRange) ?? []
             self.matchCount.wrappedValue = matches.count
             
             if matches.isEmpty { 
